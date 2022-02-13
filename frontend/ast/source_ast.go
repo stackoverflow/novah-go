@@ -4,6 +4,7 @@ package ast
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/stackoverflow/novah-go/data"
 	"github.com/stackoverflow/novah-go/frontend/lexer"
@@ -30,10 +31,16 @@ const (
 
 // Represents a source module AST
 type SModule struct {
-	Name       Spanned[string]
-	SourceName string
-	Imports    []SImport
-	Foreigns   []SForeignImport
+	Name                Spanned[string]
+	SourceName          string
+	Imports             []SImport
+	Foreigns            []SForeignImport
+	Decls               []SDecl
+	Meta                *SMetadata
+	Span                lexer.Span
+	Comment             *lexer.Comment
+	ResolvedImports     map[string]string
+	ResolvedTypealiases []STypeAliasDecl
 }
 
 // `null` ctors mean only the type is imported, but no constructors.
@@ -58,6 +65,126 @@ type SForeignImport struct {
 	Type  string
 	Alias *string
 	Span  lexer.Span
+}
+
+///////////////////////////////////////////////
+// Source Declarations
+///////////////////////////////////////////////
+
+type SDecl interface {
+	Name() string
+	Visibility() Visibility
+	Comment() *lexer.Comment
+	Span() lexer.Span
+	Meta() SMetadata
+}
+
+type STypeDecl struct {
+	name       string
+	visibility Visibility
+	Binder     Spanned[string]
+	TyVars     []string
+	DataCtors  []SDataCtor
+	span       lexer.Span
+	comment    *lexer.Comment
+	meta       SMetadata
+}
+
+type SValDecl struct {
+	Binder     Spanned[string]
+	Pats       []SPattern
+	Exp        SExpr
+	Signature  SSignature
+	visibility Visibility
+	IsInstance bool
+	IsOperator bool
+	span       lexer.Span
+	comment    *lexer.Comment
+	meta       SMetadata
+}
+
+type STypeAliasDecl struct {
+	name       string
+	TyVars     []string
+	Type       SType
+	visibility Visibility
+	span       lexer.Span
+	comment    *lexer.Comment
+	meta       SMetadata
+	Expanded   *SType
+	FreeVars   map[string]bool
+}
+
+type SSignature struct {
+	Type SType
+	Span lexer.Span
+}
+
+func (d STypeDecl) Name() string {
+	return d.name
+}
+func (d STypeDecl) Visibility() Visibility {
+	return d.visibility
+}
+func (d STypeDecl) Span() lexer.Span {
+	return d.span
+}
+func (d STypeDecl) Comment() *lexer.Comment {
+	return d.comment
+}
+func (d STypeDecl) Meta() SMetadata {
+	return d.meta
+}
+
+func (d SValDecl) Name() string {
+	return d.Binder.Val
+}
+func (d SValDecl) Visibility() Visibility {
+	return d.visibility
+}
+func (d SValDecl) Span() lexer.Span {
+	return d.span
+}
+func (d SValDecl) Comment() *lexer.Comment {
+	return d.comment
+}
+func (d SValDecl) Meta() SMetadata {
+	return d.meta
+}
+
+func (d STypeAliasDecl) Name() string {
+	return d.name
+}
+func (d STypeAliasDecl) Visibility() Visibility {
+	return d.visibility
+}
+func (d STypeAliasDecl) Span() lexer.Span {
+	return d.span
+}
+func (d STypeAliasDecl) Comment() *lexer.Comment {
+	return d.comment
+}
+func (d STypeAliasDecl) Meta() SMetadata {
+	return d.meta
+}
+
+///////////////////////////////////////////////
+// Source Data Constructors
+///////////////////////////////////////////////
+
+type SDataCtor struct {
+	Name       Spanned[string]
+	Args       []SType
+	Visibility Visibility
+	Span       lexer.Span
+}
+
+///////////////////////////////////////////////
+// Source Metadada
+///////////////////////////////////////////////
+
+type SMetadata struct {
+	Data SRecordExtend
 }
 
 ///////////////////////////////////////////////
@@ -346,6 +473,72 @@ type STypeCast struct {
 	comment *lexer.Comment
 }
 
+func (_ SInt) sExpr() {}
+func (e SInt) Span() lexer.Span {
+	return e.span
+}
+func (e SInt) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SInt) String() string {
+	return e.Text
+}
+
+func (_ SFloat) sExpr() {}
+func (e SFloat) Span() lexer.Span {
+	return e.span
+}
+func (e SFloat) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SFloat) String() string {
+	return e.Text
+}
+
+func (_ SComplex) sExpr() {}
+func (e SComplex) Span() lexer.Span {
+	return e.span
+}
+func (e SComplex) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SComplex) String() string {
+	return e.Text
+}
+
+func (_ SString) sExpr() {}
+func (e SString) Span() lexer.Span {
+	return e.span
+}
+func (e SString) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SString) String() string {
+	return e.Raw
+}
+
+func (_ SChar) sExpr() {}
+func (e SChar) Span() lexer.Span {
+	return e.span
+}
+func (e SChar) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SChar) String() string {
+	return e.Raw
+}
+
+func (_ SBool) sExpr() {}
+func (e SBool) Span() lexer.Span {
+	return e.span
+}
+func (e SBool) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SBool) String() string {
+	return strconv.FormatBool(e.V)
+}
+
 func (_ SVar) sExpr() {}
 func (e SVar) Span() lexer.Span {
 	return e.span
@@ -358,6 +551,389 @@ func (e SVar) String() string {
 		return fmt.Sprintf("%s.%s", *e.Alias, e.Name)
 	}
 	return e.Name
+}
+
+func (_ SOperator) sExpr() {}
+func (e SOperator) Span() lexer.Span {
+	return e.span
+}
+func (e SOperator) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SOperator) String() string {
+	if e.Alias != nil {
+		return fmt.Sprintf("%s.%s", *e.Alias, e.Name)
+	}
+	return e.Name
+}
+
+func (_ SImplicitVar) sExpr() {}
+func (e SImplicitVar) Span() lexer.Span {
+	return e.span
+}
+func (e SImplicitVar) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SImplicitVar) String() string {
+	if e.Alias != nil {
+		return fmt.Sprintf("%s.%s", *e.Alias, e.Name)
+	}
+	return e.Name
+}
+
+func (_ SConstructor) sExpr() {}
+func (e SConstructor) Span() lexer.Span {
+	return e.span
+}
+func (e SConstructor) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SConstructor) String() string {
+	if e.Alias != nil {
+		return fmt.Sprintf("%s.%s", *e.Alias, e.Name)
+	}
+	return e.Name
+}
+
+func (_ SPatternLiteral) sExpr() {}
+func (e SPatternLiteral) Span() lexer.Span {
+	return e.span
+}
+func (e SPatternLiteral) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SPatternLiteral) String() string {
+	return fmt.Sprintf("#\"%s\"", e.Raw)
+}
+
+func (_ SLambda) sExpr() {}
+func (e SLambda) Span() lexer.Span {
+	return e.span
+}
+func (e SLambda) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SLambda) String() string {
+	return "Lambda"
+}
+
+func (_ SApp) sExpr() {}
+func (e SApp) Span() lexer.Span {
+	return e.span
+}
+func (e SApp) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SApp) String() string {
+	return "App"
+}
+
+func (_ SBinApp) sExpr() {}
+func (e SBinApp) Span() lexer.Span {
+	return e.span
+}
+func (e SBinApp) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SBinApp) String() string {
+	return "BinApp"
+}
+
+func (_ SIf) sExpr() {}
+func (e SIf) Span() lexer.Span {
+	return e.span
+}
+func (e SIf) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SIf) String() string {
+	return "If"
+}
+
+func (_ SLet) sExpr() {}
+func (e SLet) Span() lexer.Span {
+	return e.span
+}
+func (e SLet) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SLet) String() string {
+	return "Let"
+}
+
+func (_ SMatch) sExpr() {}
+func (e SMatch) Span() lexer.Span {
+	return e.span
+}
+func (e SMatch) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SMatch) String() string {
+	return "Match"
+}
+
+func (_ SAnn) sExpr() {}
+func (e SAnn) Span() lexer.Span {
+	return e.span
+}
+func (e SAnn) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SAnn) String() string {
+	return "Ann"
+}
+
+func (_ SDo) sExpr() {}
+func (e SDo) Span() lexer.Span {
+	return e.span
+}
+func (e SDo) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SDo) String() string {
+	return "Do"
+}
+
+func (_ SDoLet) sExpr() {}
+func (e SDoLet) Span() lexer.Span {
+	return e.span
+}
+func (e SDoLet) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SDoLet) String() string {
+	return "DoLet"
+}
+
+func (_ SLetBang) sExpr() {}
+func (e SLetBang) Span() lexer.Span {
+	return e.span
+}
+func (e SLetBang) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SLetBang) String() string {
+	return "LetBang"
+}
+
+func (_ SFor) sExpr() {}
+func (e SFor) Span() lexer.Span {
+	return e.span
+}
+func (e SFor) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SFor) String() string {
+	return "For"
+}
+
+func (_ SParens) sExpr() {}
+func (e SParens) Span() lexer.Span {
+	return e.span
+}
+func (e SParens) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SParens) String() string {
+	return fmt.Sprintf("(%s)", e.Exp.String())
+}
+
+func (_ SUnit) sExpr() {}
+func (e SUnit) Span() lexer.Span {
+	return e.span
+}
+func (e SUnit) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SUnit) String() string {
+	return "()"
+}
+
+func (_ SRecordEmpty) sExpr() {}
+func (e SRecordEmpty) Span() lexer.Span {
+	return e.span
+}
+func (e SRecordEmpty) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SRecordEmpty) String() string {
+	return "{}"
+}
+
+func (_ SRecordSelect) sExpr() {}
+func (e SRecordSelect) Span() lexer.Span {
+	return e.span
+}
+func (e SRecordSelect) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SRecordSelect) String() string {
+	return "RecordSelect"
+}
+
+func (_ SRecordExtend) sExpr() {}
+func (e SRecordExtend) Span() lexer.Span {
+	return e.span
+}
+func (e SRecordExtend) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SRecordExtend) String() string {
+	return "RecordExtend"
+}
+
+func (_ SRecordRestrict) sExpr() {}
+func (e SRecordRestrict) Span() lexer.Span {
+	return e.span
+}
+func (e SRecordRestrict) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SRecordRestrict) String() string {
+	return "RecordRestrict"
+}
+
+func (_ SRecordUpdate) sExpr() {}
+func (e SRecordUpdate) Span() lexer.Span {
+	return e.span
+}
+func (e SRecordUpdate) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SRecordUpdate) String() string {
+	return "RecordUpdate"
+}
+
+func (_ SRecordMerge) sExpr() {}
+func (e SRecordMerge) Span() lexer.Span {
+	return e.span
+}
+func (e SRecordMerge) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SRecordMerge) String() string {
+	return "RecordMerge"
+}
+
+func (_ SListLiteral) sExpr() {}
+func (e SListLiteral) Span() lexer.Span {
+	return e.span
+}
+func (e SListLiteral) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SListLiteral) String() string {
+	return "[]"
+}
+
+func (_ SSetLiteral) sExpr() {}
+func (e SSetLiteral) Span() lexer.Span {
+	return e.span
+}
+func (e SSetLiteral) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SSetLiteral) String() string {
+	return "#{}"
+}
+
+func (_ SIndex) sExpr() {}
+func (e SIndex) Span() lexer.Span {
+	return e.span
+}
+func (e SIndex) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SIndex) String() string {
+	return "%.[]"
+}
+
+func (_ SUnderscore) sExpr() {}
+func (e SUnderscore) Span() lexer.Span {
+	return e.span
+}
+func (e SUnderscore) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SUnderscore) String() string {
+	return "_"
+}
+
+func (_ SWhile) sExpr() {}
+func (e SWhile) Span() lexer.Span {
+	return e.span
+}
+func (e SWhile) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SWhile) String() string {
+	return "While"
+}
+
+func (_ SComputation) sExpr() {}
+func (e SComputation) Span() lexer.Span {
+	return e.span
+}
+func (e SComputation) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SComputation) String() string {
+	return "Computation"
+}
+
+func (_ SReturn) sExpr() {}
+func (e SReturn) Span() lexer.Span {
+	return e.span
+}
+func (e SReturn) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SReturn) String() string {
+	return fmt.Sprintf("return %s", e.Exp.String())
+}
+
+func (_ SYield) sExpr() {}
+func (e SYield) Span() lexer.Span {
+	return e.span
+}
+func (e SYield) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SYield) String() string {
+	return fmt.Sprintf("yield %s", e.Exp.String())
+}
+
+func (_ SDoBang) sExpr() {}
+func (e SDoBang) Span() lexer.Span {
+	return e.span
+}
+func (e SDoBang) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SDoBang) String() string {
+	return "Do!"
+}
+
+func (_ SNil) sExpr() {}
+func (e SNil) Span() lexer.Span {
+	return e.span
+}
+func (e SNil) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e SNil) String() string {
+	return "nil"
+}
+
+func (_ STypeCast) sExpr() {}
+func (e STypeCast) Span() lexer.Span {
+	return e.span
+}
+func (e STypeCast) Comment() *lexer.Comment {
+	return e.comment
+}
+func (e STypeCast) String() string {
+	return fmt.Sprintf("%s as %s", e.Exp.String(), e.Cast.String())
 }
 
 ///////////////////////////////////////////////
