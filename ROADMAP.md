@@ -1,0 +1,26 @@
+# Roadmap
+
+- [ ] Rewrite the compiler in novah itself (?)
+- [ ] REPL
+- [ ] Website
+- [ ] Add doc like capabilities to comments (using markdown probably)
+- [ ] IDE support
+- [ ] LSP implemented in the compiler
+- [ ] Auto derive Show and maybe some other type classes
+- [ ] Tail call optimization for recursive functions
+- [ ] Computation expressions
+- [ ] Standard library
+- [ ] Multi line strings
+- [ ] Anonymous function arguments
+- [ ] Full pattern destructuring for function and let parameters
+- [ ] Multi-expression pattern matching
+- [ ] Full support for pattern matching (records, lists, named, guards)
+- [ ] Generic programming with instance arguments (implicits)
+- [ ] Literal syntax for basic data structures
+- [ ] Persistent data structures
+- [ ] Row polymorphism
+- [ ] Go interoperability
+- [ ] Full compilation cycle and runnable main
+- [ ] Support all Go primitives
+- [ ] Type constructors (ex: List Int)
+- [ ] Create a canonical formatter for the language
