@@ -27,7 +27,7 @@ func (it PeekableIterator) hasNext() bool {
 	return it.lookahead != nil || it.lexer.HasMore()
 }
 
-func (it PeekableIterator) next() *lexer.Token {
+func (it PeekableIterator) next() lexer.Token {
 	var t lexer.Token
 	if it.lookahead != nil {
 		tmp := it.lookahead
@@ -40,21 +40,26 @@ func (it PeekableIterator) next() *lexer.Token {
 		it.onError(&t)
 	}
 	it.current = &t
-	return &t
+	return t
 }
 
-func (it PeekableIterator) peek() *lexer.Token {
+func (it PeekableIterator) peek() lexer.Token {
 	if it.lookahead == nil {
-		it.lookahead = it.next()
+		n := it.next()
+		it.lookahead = &n
 	}
-	return it.lookahead
+	return *it.lookahead
 }
 
-func (it PeekableIterator) Current() *lexer.Token {
+func (it PeekableIterator) peekIsOffside() bool {
+	return !it.ignoreOffside && it.peek().Offside() < it.offside
+}
+
+func (it PeekableIterator) Current() lexer.Token {
 	if it.current == nil {
 		panic("called current element before the iterator started")
 	}
-	return it.current
+	return *it.current
 }
 
 func (it PeekableIterator) withIgnoreOffside(shouldIgnore bool) {

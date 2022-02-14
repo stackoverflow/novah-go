@@ -117,6 +117,10 @@ func (t Token) Offside() int {
 	return t.Span.Start.Col
 }
 
+func (t Token) IsDotStart() bool {
+	return t.Type == OP && t.Value.(string)[0] == '.'
+}
+
 type Lexer struct {
 	Name   string
 	buffer *bufio.Reader
@@ -370,6 +374,10 @@ func (lex *Lexer) ident(init *rune) Token {
 			}
 			return Token{Type: PUBLIC}
 		}
+	}
+
+	if str[0:2] == "__" {
+		lex.lexError(fmt.Sprintf("Identifiers cannot start with a double underscore (__)."))
 	}
 
 	if IsUpper(str) {
@@ -658,7 +666,8 @@ func (lex *Lexer) consumeWhiteSpace() {
 }
 
 func (lex *Lexer) lexError(msg string) {
-	panic(fmt.Sprintf(msg+" at %d:%d", lex.line, lex.col))
+	span := Span{Pos{lex.line, lex.col}, Pos{lex.line, lex.col}}
+	panic(LexerError{msg, span})
 }
 
 func (lex *Lexer) peek() (rune, error) {
@@ -735,4 +744,13 @@ var operators map[rune]bool = map[rune]bool{
 	'.': true,
 	'?': true,
 	'!': true,
+}
+
+type LexerError struct {
+	Msg  string
+	Span Span
+}
+
+func (err LexerError) Error() string {
+	return err.Msg
 }

@@ -8,6 +8,10 @@ import (
 
 type LabelMap[T any] []data.Tuple[string, T]
 
+func EmptyLabelMap[T any]() LabelMap[T] {
+	return []data.Tuple[string, T]{}
+}
+
 func ShowLabelMap[T fmt.Stringer](lm LabelMap[T]) string {
 	return fmt.Sprintf("{%s}", ShowLabels(lm, func(k string, v T) string {
 		return fmt.Sprintf("%s: %s", k, v.String())

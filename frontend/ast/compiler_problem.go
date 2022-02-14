@@ -17,3 +17,7 @@ type CompilerProblem struct {
 	Module   *string
 	Severity Severity
 }
+
+func (cp CompilerProblem) Error() string {
+	return cp.Msg
+}
