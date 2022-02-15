@@ -32,6 +32,11 @@ func (s Span) adjacent(other Span) bool {
 	return s.End.Line+1 == other.Start.Line
 }
 
+// Returns true if this ends on the same line as other starts
+func (s *Span) SameLine(other Span) bool {
+	return s.End.Line == other.Start.Line
+}
+
 type TokenType int
 
 const (
@@ -119,6 +124,10 @@ func (t Token) Offside() int {
 
 func (t Token) IsDotStart() bool {
 	return t.Type == OP && t.Value.(string)[0] == '.'
+}
+
+func (t Token) IsDoubleColon() bool {
+	return t.Type == OP && t.Value.(string) == "::"
 }
 
 type Lexer struct {

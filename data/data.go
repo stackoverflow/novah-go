@@ -26,15 +26,15 @@ func None[T any]() Option[T] {
 	return Option[T]{empty: true}
 }
 
-func (o Option[T]) Empty() bool {
+func (o *Option[T]) IsEmpty() bool {
 	return o.empty
 }
 
-func (s Option[T]) Value() T {
+func (s *Option[T]) Value() T {
 	return s.val
 }
 
-func (s Option[T]) ValueOrNil() *T {
+func (s *Option[T]) ValueOrNil() *T {
 	if s.empty {
 		return nil
 	}
@@ -58,11 +58,11 @@ func Err[T any](err error) Result[T] {
 	return Result[T]{nil, &err}
 }
 
-func (r Result[T]) IsOk() bool {
+func (r *Result[T]) IsOk() bool {
 	return r.err == nil
 }
 
-func (r Result[T]) IsErr() bool {
+func (r *Result[T]) IsErr() bool {
 	return r.err != nil
 }
 

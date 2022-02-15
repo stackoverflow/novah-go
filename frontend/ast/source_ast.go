@@ -301,7 +301,7 @@ type SBinApp struct {
 type SIf struct {
 	Cond    SExpr
 	Then    SExpr
-	Else    *SExpr
+	Else    data.Option[SExpr]
 	Span    lexer.Span
 	Comment *lexer.Comment
 }
@@ -935,6 +935,17 @@ func (e STypeCast) GetComment() *lexer.Comment {
 }
 func (e STypeCast) String() string {
 	return fmt.Sprintf("%s as %s", e.Exp.String(), e.Cast.String())
+}
+
+func IsSimple(e *SExpr) bool {
+	switch t := (*e).(type) {
+	case SIf, SLet, SMatch, SDo, SDoLet, SWhile, SComputation:
+		return false
+	case SAnn:
+		return IsSimple(&t.Exp)
+	default:
+		return true
+	}
 }
 
 ///////////////////////////////////////////////
