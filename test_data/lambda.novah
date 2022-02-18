@@ -1,0 +1,5 @@
+module lambda
+
+simple = \x -> x
+
+multi = \x y z -> 1

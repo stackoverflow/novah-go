@@ -245,23 +245,34 @@ func (p *parser) parseDecl() ast.SDecl {
 			if isInstance {
 				throwError2(data.INSTANCE_ERROR, tk.Span)
 			}
-			decl = *p.parseTypeDecl(visibility, offside)
+			tdecl := *p.parseTypeDecl(visibility, offside)
+			tdecl.Comment = comment
+			decl = tdecl
 		}
 	case lexer.IDENT:
-		decl = *p.parseVarDecl(visibility, isInstance, offside, false)
+		{
+			vdecl := *p.parseVarDecl(visibility, isInstance, offside, false)
+			vdecl.Comment = comment
+			decl = vdecl
+		}
 	case lexer.LPAREN:
-		decl = *p.parseVarDecl(visibility, isInstance, offside, true)
+		{
+			vdecl := *p.parseVarDecl(visibility, isInstance, offside, true)
+			vdecl.Comment = comment
+			decl = vdecl
+		}
 	case lexer.TYPEALIAS:
 		{
 			if isInstance {
 				throwError2(data.INSTANCE_ERROR, tk.Span)
 			}
-			decl = *p.parseTypeAlias(visibility, offside)
+			tdecl := *p.parseTypeAlias(visibility, offside)
+			tdecl.Comment = comment
+			decl = tdecl
 		}
 	default:
 		throwError2(data.TOPLEVEL_IDENT, tk.Span)
 	}
-	decl.SetComment(comment)
 	return decl
 }
 

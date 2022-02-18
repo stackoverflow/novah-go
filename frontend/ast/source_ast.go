@@ -80,7 +80,6 @@ type SDecl interface {
 	GetName() string
 	GetVisibility() Visibility
 	GetComment() *lexer.Comment
-	SetComment(*lexer.Comment)
 	GetSpan() lexer.Span
 	Metadata() SMetadata
 }
@@ -137,9 +136,6 @@ func (d STypeDecl) GetSpan() lexer.Span {
 func (d STypeDecl) GetComment() *lexer.Comment {
 	return d.Comment
 }
-func (d STypeDecl) SetComment(c *lexer.Comment) {
-	d.Comment = c
-}
 func (d STypeDecl) Metadata() SMetadata {
 	return d.Meta
 }
@@ -156,9 +152,6 @@ func (d SValDecl) GetSpan() lexer.Span {
 func (d SValDecl) GetComment() *lexer.Comment {
 	return d.Comment
 }
-func (d SValDecl) SetComment(c *lexer.Comment) {
-	d.Comment = c
-}
 func (d SValDecl) Metadata() SMetadata {
 	return d.Meta
 }
@@ -174,9 +167,6 @@ func (d STypeAliasDecl) GetSpan() lexer.Span {
 }
 func (d STypeAliasDecl) GetComment() *lexer.Comment {
 	return d.Comment
-}
-func (d STypeAliasDecl) SetComment(c *lexer.Comment) {
-	d.Comment = c
 }
 func (d STypeAliasDecl) Metadata() SMetadata {
 	return d.Meta
