@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/stackoverflow/novah-go/data"
 )
@@ -18,12 +19,25 @@ func ShowLabelMap[T fmt.Stringer](lm LabelMap[T]) string {
 	}))
 }
 
+var labelRegex = regexp.MustCompile("^[a-z](?:\\w+|_)*$")
+
 func showLabel(label string) string {
-	return label
+	if labelRegex.MatchString(label) {
+		return label
+	}
+	return fmt.Sprintf(`"%s"`, label)
 }
 
 func ShowLabels[V any](labels LabelMap[V], f func(string, V) string) string {
-	return data.JoinToString(labels, ", ", func(tu data.Tuple[string, V]) string {
+	return data.JoinToStringFunc(labels, ", ", func(tu data.Tuple[string, V]) string {
 		return f(showLabel(tu.V1), tu.V2)
 	})
+}
+
+func LabelValues[T any](m *LabelMap[T]) []T {
+	res := make([]T, len(*m))
+	for _, tu := range *m {
+		res = append(res, tu.V2)
+	}
+	return res
 }

@@ -45,7 +45,7 @@ func (it *PeekableIterator) next() lexer.Token {
 
 func (it *PeekableIterator) peek() lexer.Token {
 	if it.lookahead == nil {
-		n := it.next()
+		n := it.lexer.Scan()
 		it.lookahead = &n
 	}
 	return *it.lookahead

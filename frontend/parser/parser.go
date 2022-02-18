@@ -1,13 +1,14 @@
 package parser
 
 import (
+	"math"
+
 	"github.com/stackoverflow/novah-go/data"
 	"github.com/stackoverflow/novah-go/frontend/ast"
 	"github.com/stackoverflow/novah-go/frontend/lexer"
 )
 
 type parser struct {
-	lex        *lexer.Lexer
 	sourceName string
 
 	iter       *PeekableIterator
@@ -15,15 +16,14 @@ type parser struct {
 	errors     []ast.CompilerProblem
 }
 
-func NewParser(tokens *lexer.Lexer, sourceName string) *parser {
+func NewParser(tokens *lexer.Lexer) *parser {
 	return &parser{
-		lex:        tokens,
-		sourceName: sourceName,
+		sourceName: tokens.Name,
 		iter:       newPeekableIterator(tokens, throwMismatchedIdentation),
 	}
 }
 
-func (p *parser) ParseFullModule() (res data.Result[ast.SModule]) {
+func (p *parser) ParseFullModule() (res *ast.SModule, errs []ast.CompilerProblem) {
 	defer func() {
 		if r := recover(); r != nil {
 			var msg string
@@ -42,15 +42,17 @@ func (p *parser) ParseFullModule() (res data.Result[ast.SModule]) {
 			default:
 				panic("Got unexpected error in parseFullModule")
 			}
-			err := ast.CompilerProblem{Msg: msg, Span: span, Filename: p.sourceName, Module: p.moduleName, Severity: ast.FATAL}
-			res = data.Err[ast.SModule](err)
+			errs = append(errs, p.errors...)
+			errs = append(errs, ast.CompilerProblem{Msg: msg, Span: span, Filename: p.sourceName, Module: p.moduleName, Severity: ast.FATAL})
 		}
 	}()
 
-	return data.Ok(p.parseFullModule())
+	res = p.parseFullModule()
+	errs = append(errs, p.errors...)
+	return
 }
 
-func (p *parser) parseFullModule() ast.SModule {
+func (p *parser) parseFullModule() *ast.SModule {
 	mdef := p.parseModule()
 	p.moduleName = &mdef.name.Val
 
@@ -62,10 +64,41 @@ func (p *parser) parseFullModule() ast.SModule {
 	}
 	// TODO: add default imports
 
-	return ast.SModule{
+	decls := make([]ast.SDecl, 0, 5)
+	for p.iter.peek().Type != lexer.EOF {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					var msg string
+					var span lexer.Span
+					switch e := r.(type) {
+					case lexer.LexerError:
+						{
+							msg = e.Msg
+							span = e.Span
+						}
+					case ParserError:
+						{
+							msg = e.msg
+							span = e.span
+						}
+					default:
+						panic("Got unexpected error in parseFullModule")
+					}
+					p.errors = append(p.errors, ast.CompilerProblem{Msg: msg, Span: span, Filename: p.sourceName, Module: p.moduleName, Severity: ast.ERROR})
+					p.fastForward()
+				}
+			}()
+
+			decls = append(decls, p.parseDecl())
+		}()
+	}
+
+	return &ast.SModule{
 		Name:       mdef.name,
 		SourceName: p.sourceName,
 		Imports:    imports,
+		Decls:      decls,
 		Span:       mdef.span,
 		Comment:    mdef.comment,
 	}
@@ -83,13 +116,11 @@ func (p *parser) parseModuleName() ast.Spanned[string] {
 	for _, it := range idents {
 		v := *it.Text
 		if v[len(v)-1] == '?' || v[len(v)-1] == '!' {
-			throwError(data.Tuple[string, lexer.Span]{V1: data.MODULE_NAME, V2: it.Span})
+			throwError2(data.MODULE_NAME, it.Span)
 		}
 	}
 	span := span(idents[0].Span, idents[len(idents)-1].Span)
-	name := data.JoinToString(idents, ".", func(t lexer.Token) string {
-		return *t.Text
-	})
+	name := data.JoinToStringFunc(idents, ".", func(t lexer.Token) string { return *t.Text })
 	return ast.Spanned[string]{Val: name, Span: span}
 }
 
@@ -116,9 +147,9 @@ func (p *parser) parseImport() ast.SImport {
 			if p.iter.peek().Type == lexer.AS {
 				p.iter.next()
 				alias := p.expect(lexer.UPPERIDENT, withError(data.IMPORT_ALIAS))
-				impor = ast.SImport{Module: mod, Defs: &imp, Alias: alias.Text, Span: span(impTk.Span, p.iter.current.Span)}
+				impor = ast.SImport{Module: mod, Defs: imp, Alias: alias.Text, Span: span(impTk.Span, p.iter.current.Span)}
 			} else {
-				impor = ast.SImport{Module: mod, Defs: &imp, Span: span(impTk.Span, p.iter.current.Span)}
+				impor = ast.SImport{Module: mod, Defs: imp, Span: span(impTk.Span, p.iter.current.Span)}
 			}
 		}
 	case lexer.AS:
@@ -138,9 +169,7 @@ func (p *parser) parseDeclarationRefs() []ast.SDeclarationRef {
 		throwError(withError(data.EmptyImport("Import"))(p.iter.peek()))
 	}
 
-	exps := between(p, lexer.COMMA, func() ast.SDeclarationRef {
-		return p.parseDeclarationRef()
-	})
+	exps := between(p, lexer.COMMA, func() ast.SDeclarationRef { return p.parseDeclarationRef() })
 
 	p.expect(lexer.RPAREN, withError(data.RParensExpected("import")))
 	return exps
@@ -159,11 +188,13 @@ func (p *parser) parseDeclarationRef() ast.SDeclarationRef {
 			if p.iter.peek().Type == lexer.LPAREN {
 				p.expect(lexer.LPAREN, noErr())
 				var ctors []ast.Spanned[string]
+				all := false
 				if p.iter.peek().Type == lexer.OP {
 					op := p.expect(lexer.OP, withError(data.DECLARATION_REF_ALL))
-					if *op.Text == ".." {
+					if *op.Text != ".." {
 						throwError(withError(data.DECLARATION_REF_ALL)(op))
 					}
+					all = true
 				} else {
 					ctors = between(p, lexer.COMMA, func() ast.Spanned[string] {
 						ident := p.expect(lexer.UPPERIDENT, withError(data.CTOR_NAME))
@@ -171,7 +202,7 @@ func (p *parser) parseDeclarationRef() ast.SDeclarationRef {
 					})
 				}
 				end := p.expect(lexer.RPAREN, withError(data.DECLARATION_REF_ALL))
-				return ast.SDeclarationRef{Tag: ast.TYPE, Name: binder, Span: span(sp.Span, end.Span), Ctors: &ctors}
+				return ast.SDeclarationRef{Tag: ast.TYPE, Name: binder, Span: span(sp.Span, end.Span), Ctors: ctors, All: all}
 			} else {
 				return ast.SDeclarationRef{Tag: ast.TYPE, Name: binder, Span: sp.Span}
 			}
@@ -181,12 +212,233 @@ func (p *parser) parseDeclarationRef() ast.SDeclarationRef {
 	}
 }
 
-func (p *parser) parseExpression(inDo bool) ast.SExpr {
-
-	panic("")
+func (p *parser) parseDecl() ast.SDecl {
+	// meta := parseMetadata()
+	tk := p.iter.peek()
+	comment := tk.Comment
+	var visibility *lexer.TokenType
+	isInstance := false
+	offside := math.MaxInt32
+	if tk.Type == lexer.PUBLIC || tk.Type == lexer.PUBLICPLUS {
+		p.iter.next()
+		visibility = &tk.Type
+		if tk.Offside() < offside {
+			offside = tk.Offside()
+		}
+		tk = p.iter.peek()
+	}
+	if tk.Type == lexer.INSTANCE {
+		p.iter.next()
+		isInstance = true
+		if tk.Offside() < offside {
+			offside = tk.Offside()
+		}
+		tk = p.iter.peek()
+	}
+	if tk.Offside() < offside {
+		offside = tk.Offside()
+	}
+	var decl ast.SDecl
+	switch tk.Type {
+	case lexer.TYPE:
+		{
+			if isInstance {
+				throwError2(data.INSTANCE_ERROR, tk.Span)
+			}
+			decl = *p.parseTypeDecl(visibility, offside)
+		}
+	case lexer.IDENT:
+		decl = *p.parseVarDecl(visibility, isInstance, offside, false)
+	case lexer.LPAREN:
+		decl = *p.parseVarDecl(visibility, isInstance, offside, true)
+	case lexer.TYPEALIAS:
+		{
+			if isInstance {
+				throwError2(data.INSTANCE_ERROR, tk.Span)
+			}
+			decl = *p.parseTypeAlias(visibility, offside)
+		}
+	default:
+		throwError2(data.TOPLEVEL_IDENT, tk.Span)
+	}
+	decl.SetComment(comment)
+	return decl
 }
 
-func (p *parser) tryParseAtom() *ast.SExpr {
+func (p *parser) parseTypeDecl(visibility *lexer.TokenType, offside int) *ast.STypeDecl {
+	vis := ast.PUBLIC
+	if visibility == nil {
+		vis = ast.PRIVATE
+	}
+	typ := p.expect(lexer.TYPE, noErr())
+	return withOffside(p, offside+1, func() *ast.STypeDecl {
+		nameTk := p.expect(lexer.UPPERIDENT, withError(data.DATA_NAME))
+		name := ast.Spanned[string]{Val: *nameTk.Text, Span: nameTk.Span}
+
+		tyVars := parseListOf(p, p.parseTypeVar, func(t lexer.Token) bool { return t.Type == lexer.IDENT })
+
+		p.expect(lexer.EQUALS, withError(data.DATA_EQUALS))
+
+		ctors := make([]ast.SDataCtor, 0)
+		for true {
+			ctors = append(ctors, *p.parseDataConstructor(tyVars, visibility))
+			if p.iter.peekIsOffside() || p.iter.peek().Type == lexer.EOF {
+				break
+			}
+			p.expect(lexer.PIPE, withError(data.PipeExpected("constructor")))
+		}
+		return &ast.STypeDecl{Binder: name, Visibility: vis, TyVars: tyVars, DataCtors: ctors,
+			Span: span(typ.Span, p.iter.current.Span)}
+	})
+}
+
+func (p *parser) parseVarDecl(visibility *lexer.TokenType, isInstance bool, offside int, isOperator bool) *ast.SValDecl {
+	parseName := func(name string) ast.Spanned[string] {
+		if isOperator {
+			tk := p.expect(lexer.LPAREN, withError(data.INVALID_OPERATOR_DECL))
+			op := p.expect(lexer.OP, withError(data.INVALID_OPERATOR_DECL))
+			end := p.expect(lexer.RPAREN, withError(data.INVALID_OPERATOR_DECL))
+			return ast.Spanned[string]{Val: op.Value.(string), Span: span(tk.Span, end.Span)}
+		} else {
+			id := p.expect(lexer.IDENT, withError(data.ExpectedDefinition(name)))
+			return ast.Spanned[string]{Val: *id.Text, Span: id.Span}
+		}
+	}
+
+	vis := ast.PRIVATE
+	if visibility != nil {
+		if *visibility == lexer.PUBLICPLUS {
+			throwError2(data.PUB_PLUS, p.iter.current.Span)
+		}
+		vis = ast.PUBLIC
+	}
+	nameTk := parseName("")
+	name := nameTk.Val
+
+	return withOffside(p, offside+1, func() *ast.SValDecl {
+		var sig ast.SSignature
+		nameTk2 := nameTk
+		if p.iter.peek().Type == lexer.COLON {
+			sig = ast.SSignature{Type: p.parseTypeSignature(), Span: nameTk.Span}
+			withOffside(p, nameTk.Offside(), func() any {
+				nameTk2 = parseName(name)
+				if name != nameTk2.Val {
+					throwError2(data.ExpectedDefinition(name), nameTk2.Span)
+				}
+				return 0
+			})
+		}
+		vars := tryParseListOfDef(p, func() (ast.SPattern, bool) { return p.tryParsePattern(true) })
+
+		eq := p.expect(lexer.EQUALS, withError(data.EqualsExpected("function parameters/patterns")))
+
+		var exp ast.SExpr
+		if eq.Span.SameLine(p.iter.peek().Span) {
+			exp = p.parseExpression(false)
+		} else {
+			exp = p.parseDo()
+		}
+		binder := ast.Spanned[string]{Val: name, Span: nameTk2.Span}
+		if isOperator && len(name) > 3 {
+			throwError2(data.OpTooLong(name), binder.Span)
+		}
+		return &ast.SValDecl{Binder: binder, Pats: vars, Exp: exp, Signature: &sig, Visibility: vis,
+			IsInstance: isInstance, IsOperator: isOperator, Span: span(nameTk.Span, exp.GetSpan())}
+	})
+}
+
+func (p *parser) parseTypeAlias(visibility *lexer.TokenType, offside int) *ast.STypeAliasDecl {
+	vis := ast.PRIVATE
+	if visibility != nil {
+		if *visibility == lexer.PUBLICPLUS {
+			throwError2(data.PUB_PLUS, p.iter.current.Span)
+		}
+		vis = ast.PUBLIC
+	}
+	p.expect(lexer.TYPEALIAS, noErr())
+	name := p.expect(lexer.UPPERIDENT, withError(data.TYPEALIAS_NAME))
+	return withOffside(p, offside+1, func() *ast.STypeAliasDecl {
+		tyVars := tryParseListOfNil(p, false, p.tryParseTypeVar)
+		end := p.iter.current.Span
+		p.expect(lexer.EQUALS, withError(data.TYPEALIAS_EQUALS))
+		ty := p.parseType(false)
+		return &ast.STypeAliasDecl{Name: name.Value.(string),
+			TyVars: tyVars, Type: ty, Visibility: vis,
+			Span: span(name.Span, end),
+		}
+	})
+}
+
+func (p *parser) parseDataConstructor(tyVars []string, visibility *lexer.TokenType) *ast.SDataCtor {
+	ctorTk := p.expect(lexer.UPPERIDENT, withError(data.CTOR_NAME))
+	ctor := ast.Spanned[string]{Val: *ctorTk.Text, Span: ctorTk.Span}
+
+	vis := ast.PRIVATE
+	if visibility != nil && *visibility == lexer.PUBLICPLUS {
+		vis = ast.PUBLIC
+	}
+
+	pars := tryParseListOfDef(p, func() (ast.SType, bool) { return p.parseTypeAtom(true) })
+
+	freeVars := data.FlatMapSlice(pars, func(par ast.SType) []string { return ast.FindFreeVars(par, tyVars) })
+	if len(freeVars) > 0 {
+		throwError2(data.UndefinedVarInCtor(ctor.Val, freeVars), span(ctor.Span, p.iter.current.Span))
+	}
+	return &ast.SDataCtor{Name: ctor, Args: pars, Visibility: vis, Span: span(ctor.Span, p.iter.current.Span)}
+}
+
+func (p *parser) parseExpression(inDo bool) ast.SExpr {
+	if p.iter.peekIsOffside() {
+		throwMismatchedIdentation(p.iter.peek())
+	}
+	tk := p.iter.peek()
+	exps := make([]ast.SExpr, 0, 1)
+	atom, success := p.tryParseAtom()
+	if !success {
+		throwError2(data.MALFORMED_EXPR, tk.Span)
+	}
+	exps = append(exps, atom)
+
+	offside := p.iter.offside
+	if inDo {
+		offside++
+	}
+
+	return withOffside(p, offside, func() ast.SExpr {
+		atoms := tryParseListOfDef(p, func() (ast.SExpr, bool) { return p.tryParseAtom() })
+		exps = append(exps, atoms...)
+
+		// sanity check
+		if len(exps) > 1 {
+			doLets := data.FilterSliceIsInstance[ast.SExpr, ast.SDoLet](exps)
+			if len(doLets) > 0 {
+				throwError2(data.APPLIED_DO_LET, doLets[0].Span)
+			}
+		}
+
+		unrolled := parseApplication(exps)
+		if unrolled == nil {
+			throwError2(data.MALFORMED_EXPR, tk.Span)
+		}
+
+		// type signatures and casts have the lowest precedence
+		typedExpr := unrolled
+		if p.iter.peek().Type == lexer.COLON {
+			p.iter.next()
+			pt := p.parseType(false)
+			typedExpr = ast.SAnn{Exp: unrolled, Type: pt, Span: span(unrolled.GetSpan(), p.iter.current.Span), Comment: unrolled.GetComment()}
+		}
+
+		if p.iter.peek().Type == lexer.AS {
+			p.iter.next()
+			ty := p.parseType(false)
+			return ast.STypeCast{Exp: typedExpr, Cast: ty, Span: span(typedExpr.GetSpan(), p.iter.current.Span), Comment: typedExpr.GetComment()}
+		}
+		return typedExpr
+	})
+}
+
+func (p *parser) tryParseAtom() (ast.SExpr, bool) {
 	var exp ast.SExpr
 	switch p.iter.peek().Type {
 	case lexer.INT:
@@ -266,9 +518,114 @@ func (p *parser) tryParseAtom() *ast.SExpr {
 				exp = ast.SConstructor{Name: *uident.Text, Span: uident.Span, Comment: uident.Comment}
 			}
 		}
+	case lexer.BACKSLASH:
+		exp = p.parseLambda()
+	case lexer.IF:
+		exp = p.parseIf()
+	case lexer.LET:
+		exp = p.parseLet()
+	case lexer.LETBANG:
+		exp = p.parseLetBang()
+	case lexer.DODOT:
+		exp = p.parseComputation()
+	case lexer.DOBANG:
+		{
+			dobang := p.iter.next()
+			exp = withOffsideDef(p, func() ast.SExpr { return p.parseExpression(false) })
+			exp = ast.SDoBang{Exp: exp, Span: span(dobang.Span, exp.GetSpan()), Comment: dobang.Comment}
+		}
+	case lexer.CASE:
+		exp = p.parseMatch()
+	case lexer.LBRACKET:
+		exp = p.parseRecordOrImplicit()
+	case lexer.LSBRACKET:
+		{
+			tk := p.iter.next()
+			if p.iter.peek().Type == lexer.RSBRACKET {
+				end := p.iter.next()
+				exp = ast.SListLiteral{Exps: []ast.SExpr{}, Span: span(tk.Span, end.Span), Comment: tk.Comment}
+			} else {
+				exps := between(p, lexer.COMMA, func() ast.SExpr { return p.parseExpression(false) })
+				end := p.expect(lexer.RSBRACKET, withError(data.RSBracketExpected("list literal")))
+				exp = ast.SListLiteral{Exps: exps, Span: span(tk.Span, end.Span), Comment: tk.Comment}
+			}
+		}
+	case lexer.SETBRACKET:
+		{
+			tk := p.iter.next()
+			if p.iter.peek().Type == lexer.RSBRACKET {
+				end := p.iter.next()
+				exp = ast.SSetLiteral{Exps: []ast.SExpr{}, Span: span(tk.Span, end.Span), Comment: tk.Comment}
+			} else {
+				exps := between(p, lexer.COMMA, func() ast.SExpr { return p.parseExpression(false) })
+				end := p.expect(lexer.RSBRACKET, withError(data.RSBracketExpected("set literal")))
+				exp = ast.SSetLiteral{Exps: exps, Span: span(tk.Span, end.Span), Comment: tk.Comment}
+			}
+		}
+	case lexer.WHILE:
+		exp = p.parseWhile()
+	case lexer.RETURN:
+		{
+			ret := p.iter.next()
+			exp := withOffsideDef(p, func() ast.SExpr { return p.parseExpression(false) })
+			exp = ast.SReturn{Exp: exp, Span: span(ret.Span, exp.GetSpan()), Comment: ret.Comment}
+		}
+	case lexer.YIELD:
+		{
+			ret := p.iter.next()
+			exp := withOffsideDef(p, func() ast.SExpr { return p.parseExpression(false) })
+			exp = ast.SYield{Exp: exp, Span: span(ret.Span, exp.GetSpan()), Comment: ret.Comment}
+		}
+	case lexer.FOR:
+		exp = p.parseFor()
+	default:
+		return nil, false
 	}
 
-	return &exp
+	// record selection, index (.[x]), unwrap (!!) and method/field call have the highest precedence
+	return p.parseSelection(exp), true
+}
+
+func (p *parser) parseSelection(exp ast.SExpr) ast.SExpr {
+	switch p.iter.peek().Type {
+	case lexer.DOT:
+		{
+			p.iter.next()
+			labelsTk := between(p, lexer.DOT, func() lexer.Token { return p.parseLabel() })
+			labels := data.MapSlice(labelsTk, func(t lexer.Token) ast.Spanned[string] {
+				return ast.Spanned[string]{Val: t.Value.(string), Span: t.Span}
+			})
+			res := ast.SRecordSelect{Exp: exp, Labels: labels, Span: span(exp.GetSpan(), labels[len(labels)-1].Span)}
+			return p.parseSelection(res)
+		}
+	case lexer.DOTBRACKET:
+		{
+			p.iter.next()
+			index := p.parseExpression(false)
+			end := p.expect(lexer.RSBRACKET, withError(data.RSBracketExpected("index")))
+			res := ast.SIndex{Exp: exp, Index: index, Span: span(exp.GetSpan(), end.Span)}
+			return p.parseSelection(res)
+		}
+	case lexer.HASH:
+		{
+			// TODO: support foreigns
+			panic("foreigns not supported yet")
+		}
+	case lexer.HASHDASH:
+		{
+			// TODO: support foreigns
+			panic("foreigns not supported yet")
+		}
+	case lexer.BANGBANG:
+		{
+			sp := p.iter.next().Span
+			unwrap := ast.SVar{Name: "unwrapOption", Span: sp}
+			res := ast.SApp{Fn: unwrap, Arg: exp, Span: span(exp.GetSpan(), sp), Comment: exp.GetComment()}
+			return p.parseSelection(res)
+		}
+	default:
+		return exp
+	}
 }
 
 func (p *parser) parseInt() ast.SExpr {
@@ -321,7 +678,7 @@ func (p *parser) parseVar() ast.SVar {
 }
 
 func (p *parser) parseOperator() ast.SExpr {
-	v := p.expect(lexer.IDENT, withError(data.OPERATOR))
+	v := p.expect(lexer.OP, withError(data.OPERATOR))
 	return ast.SOperator{Name: *v.Text, Span: v.Span, Comment: v.Comment}
 }
 
@@ -344,9 +701,7 @@ func (p *parser) parseLambda() ast.SExpr {
 	begin := p.iter.peek()
 	p.expect(lexer.BACKSLASH, withError(data.LAMBDA_BACKSLASH))
 
-	vars := tryParseListOf(p, false, func() *ast.SPattern {
-		return p.tryParsePattern(true)
-	})
+	vars := tryParseListOfDef(p, func() (ast.SPattern, bool) { return p.tryParsePattern(true) })
 	if len(vars) == 0 {
 		throwError(withError(data.LAMBDA_VAR)(*p.iter.current))
 	}
@@ -357,9 +712,7 @@ func (p *parser) parseLambda() ast.SExpr {
 	if arr.Span.SameLine(p.iter.peek().Span) {
 		exp = p.parseExpression(false)
 	} else {
-		exp = withOffsideDef(p, func() ast.SExpr {
-			return p.parseDo()
-		})
+		exp = withOffsideDef(p, func() ast.SExpr { return p.parseDo() })
 	}
 	return ast.SLambda{Pats: vars, Body: exp, Span: span(begin.Span, exp.GetSpan()), Comment: begin.Comment}
 }
@@ -392,18 +745,18 @@ func (p *parser) parseIf() ast.SExpr {
 		return data.Tuple[ast.SExpr, ast.SExpr]{V1: cond, V2: thens}
 	})
 
-	elses := data.None[ast.SExpr]()
+	var elses ast.SExpr
 	if hasElse {
 		if els.Span.SameLine(p.iter.peek().Span) {
-			elses = data.Some(p.parseExpression(false))
+			elses = p.parseExpression(false)
 		} else {
-			elses = data.Some(p.parseDo())
+			elses = p.parseDo()
 		}
 	}
 
 	var end lexer.Span
-	if !elses.IsEmpty() {
-		end = elses.Value().GetSpan()
+	if elses != nil {
+		end = elses.GetSpan()
 	} else {
 		end = condThens.V2.GetSpan()
 	}
@@ -448,7 +801,7 @@ func (p *parser) parseWhile() ast.SExpr {
 		return exp
 	})
 	if !ast.IsSimple(&cond) {
-		throwError(data.Tuple[string, lexer.Span]{V1: data.EXP_SIMPLE, V2: cond.GetSpan()})
+		throwError2(data.EXP_SIMPLE, cond.GetSpan())
 	}
 
 	if p.iter.peekIsOffside() {
@@ -496,14 +849,272 @@ func (p *parser) parseComputation() ast.SExpr {
 }
 
 func (p *parser) parsePattern(isDestructuring bool) ast.SPattern {
-	pat := p.tryParsePattern(isDestructuring)
-	if pat == nil {
+	pat, success := p.tryParsePattern(isDestructuring)
+	if !success {
 		throwError(withError(data.PATTERN)(p.iter.peek()))
 	}
-	return *pat
+	return pat
 }
 
-func (p *parser) tryParsePattern(isDestructuring bool) *ast.SPattern {
+func (p *parser) parseLet() ast.SExpr {
+	let := p.expect(lexer.LET, noErr())
+	isInstance := false
+	if p.iter.peek().Type == lexer.INSTANCE {
+		p.iter.next()
+		isInstance = true
+	}
+
+	var def ast.SLetDef
+	withOffsideDef(p, func() bool {
+		if isInstance || p.iter.peek().Type == lexer.IDENT {
+			def = p.parseLetDefBind(isInstance)
+		} else {
+			def = p.parseLetDefPattern(false)
+		}
+		return false
+	})
+
+	if p.iter.peek().Type != lexer.IN {
+		return ast.SDoLet{Def: def, Span: span(let.Span, p.iter.current.Span), Comment: let.Comment}
+	}
+	withIgnoreOffside(p, true, func() lexer.Token { return p.expect(lexer.IN, withError(data.LET_IN)) })
+
+	exp := p.parseExpression(false)
+	return ast.SLet{Def: def, Body: exp, Span: span(let.Span, exp.GetSpan()), Comment: let.Comment}
+}
+
+func (p *parser) parseLetBang() ast.SExpr {
+	let := p.expect(lexer.LETBANG, noErr())
+
+	def := withOffsideDef(p, func() ast.SLetPat { return p.parseLetDefPattern(false) })
+
+	if p.iter.peek().Type != lexer.IN {
+		return ast.SLetBang{Def: def, Span: span(let.Span, p.iter.current.Span), Comment: let.Comment}
+	}
+	withIgnoreOffside(p, true, func() lexer.Token {
+		return p.expect(lexer.IN, withError(data.LET_IN))
+	})
+
+	exp := p.parseExpression(false)
+	return ast.SLetBang{Def: def, Body: exp, Span: span(let.Span, exp.GetSpan()), Comment: let.Comment}
+}
+
+func (p *parser) parseFor() ast.SExpr {
+	forr := p.expect(lexer.FOR, noErr())
+
+	def := withOffsideDef(p, func() ast.SLetPat { return p.parseLetDefPattern(true) })
+	withIgnoreOffside(p, true, func() lexer.Token {
+		return p.expect(lexer.DO, withError(data.FOR_DO))
+	})
+
+	exp := p.parseDo()
+	return ast.SFor{Def: def, Body: exp, Span: span(forr.Span, exp.GetSpan()), Comment: forr.Comment}
+}
+
+func (p *parser) parseLetDefBind(isInstance bool) ast.SLetDef {
+	ident := p.expect(lexer.IDENT, withError(data.LET_DECL))
+	name := *ident.Text
+
+	var ty ast.SType
+	if p.iter.peek().Type == lexer.COLON {
+		ty = withOffside(p, ident.Offside()+1, func() ast.SType {
+			p.iter.next()
+			return p.parseType(false)
+		})
+		newIdent := p.expect(lexer.IDENT, withError(data.ExpectedLetDefinition(name)))
+		if newIdent.Value.(string) != name {
+			throwError(withError(data.ExpectedLetDefinition(name))(newIdent))
+		}
+	}
+
+	vars := tryParseListOfDef(p, func() (ast.SPattern, bool) { return p.tryParsePattern(true) })
+	eq := p.expect(lexer.EQUALS, withError(data.LET_EQUALS))
+	var exp ast.SExpr
+	if eq.Span.SameLine(p.iter.peek().Span) {
+		exp = p.parseExpression(false)
+	} else {
+		exp = p.parseDo()
+	}
+	return ast.SLetBind{Expr: exp, Name: ast.Spanned[string]{Val: name, Span: ident.Span}, Pats: vars, IsInstance: isInstance, Type: ty}
+}
+
+func (p *parser) parseLetDefPattern(isFor bool) ast.SLetPat {
+	pat := p.parsePattern(true)
+
+	var tk lexer.Token
+	if isFor {
+		tk = p.expect(lexer.IN, withError(data.FOR_IN))
+	} else {
+		tk = p.expect(lexer.EQUALS, withError(data.LET_EQUALS))
+	}
+	var exp ast.SExpr
+	if tk.Span.SameLine(p.iter.peek().Span) {
+		exp = p.parseExpression(false)
+	} else {
+		exp = p.parseDo()
+	}
+
+	return ast.SLetPat{Expr: exp, Pat: pat}
+}
+
+func (p *parser) parseRecordOrImplicit() ast.SExpr {
+	return withIgnoreOffside(p, true, func() ast.SExpr {
+		begin := p.expect(lexer.LBRACKET, noErr())
+		nex := p.iter.peek()
+
+		if nex.Type == lexer.LBRACKET {
+			p.iter.next()
+			var alias *string
+			if p.iter.peek().Type == lexer.UPPERIDENT {
+				*alias = *p.expect(lexer.UPPERIDENT, noErr()).Text
+				p.expect(lexer.DOT, withError(data.ALIAS_DOT))
+			}
+			exp := *p.expect(lexer.IDENT, withError(data.INSTANCE_VAR)).Text
+			p.expect(lexer.RBRACKET, withError(data.INSTANCE_VAR))
+			end := p.expect(lexer.RBRACKET, withError(data.INSTANCE_VAR))
+			return ast.SImplicitVar{Name: exp, Alias: alias, Span: span(begin.Span, end.Span), Comment: begin.Comment}
+		}
+		if nex.Type == lexer.RBRACKET {
+			end := p.iter.next()
+			return ast.SRecordEmpty{Span: span(begin.Span, end.Span), Comment: begin.Comment}
+		}
+		if nex.Type == lexer.DOT {
+			p.iter.next()
+			return p.parseRecordSetOrUpdate(begin)
+		}
+		if nex.Type == lexer.OP && nex.Value.(string) == "-" {
+			p.iter.next()
+			return p.parseRecordRestriction(begin)
+		}
+		if nex.Type == lexer.OP && nex.Value.(string) == "+" {
+			p.iter.next()
+			return p.parseRecordMerge(begin)
+		}
+		rows := between(p, lexer.COMMA, func() data.Tuple[string, ast.SExpr] { return p.parseRecordRow() })
+		var exp ast.SExpr
+		if p.iter.peek().Type == lexer.PIPE {
+			p.iter.next()
+			exp = p.parseExpression(false)
+		} else {
+			exp = ast.SRecordEmpty{}
+		}
+		end := p.expect(lexer.RBRACKET, withError(data.RBracketExpected("record")))
+		return ast.SRecordExtend{Labels: rows, Exp: exp, Span: span(begin.Span, end.Span), Comment: begin.Comment}
+	})
+}
+
+func (p *parser) parseRecordRow() data.Tuple[string, ast.SExpr] {
+	label := p.parseLabel()
+	if p.iter.peek().Type != lexer.COLON && label.Type == lexer.IDENT {
+		exp := ast.SVar{Name: label.Value.(string), Span: label.Span, Comment: label.Comment}
+		return data.Tuple[string, ast.SExpr]{V1: label.Value.(string), V2: exp}
+	}
+	p.expect(lexer.COLON, withError(data.RECORD_COLON))
+	exp := p.parseExpression(false)
+	return data.Tuple[string, ast.SExpr]{V1: label.Value.(string), V2: exp}
+}
+
+func (p *parser) parseRecordSetOrUpdate(begin lexer.Token) ast.SExpr {
+	labels := between(p, lexer.DOT, func() lexer.Token {
+		return p.parseLabel()
+	})
+	isSet := true
+	if p.iter.peek().Type == lexer.EQUALS {
+		p.expect(lexer.EQUALS, withError(data.RECORD_EQUALS))
+	} else {
+		isSet = false
+		p.expect(lexer.ARROW, withError(data.RECORD_EQUALS))
+	}
+	var ctx string
+	if isSet {
+		ctx = "record set"
+	} else {
+		ctx = "record update"
+	}
+
+	value := p.parseExpression(false)
+	p.expect(lexer.PIPE, withError(data.PipeExpected(ctx)))
+	record := p.parseExpression(false)
+	end := p.expect(lexer.RBRACKET, withError(data.RBracketExpected(ctx)))
+	spanneds := data.MapSlice(labels, func(x lexer.Token) ast.Spanned[string] {
+		return ast.Spanned[string]{Val: x.Value.(string), Span: x.Span}
+	})
+	return ast.SRecordUpdate{Exp: record, Labels: spanneds, Val: value, IsSet: isSet, Span: span(begin.Span, end.Span), Comment: begin.Comment}
+}
+
+func (p *parser) parseRecordRestriction(begin lexer.Token) ast.SExpr {
+	labels := between(p, lexer.COMMA, func() lexer.Token { return p.parseLabel() })
+	p.expect(lexer.PIPE, withError(data.PipeExpected("record restriction")))
+	record := p.parseExpression(false)
+	end := p.expect(lexer.RBRACKET, withError(data.RBracketExpected("record restriction")))
+	spanneds := data.MapSlice(labels, func(x lexer.Token) string { return x.Value.(string) })
+	return ast.SRecordRestrict{Exp: record, Labels: spanneds, Span: span(begin.Span, end.Span), Comment: begin.Comment}
+}
+
+func (p *parser) parseRecordMerge(begin lexer.Token) ast.SExpr {
+	exp1 := p.parseExpression(false)
+	p.expect(lexer.COMMA, withError(data.CommaExpected("expression in record merge")))
+	exp2 := p.parseExpression(false)
+	end := p.expect(lexer.RBRACKET, withError(data.RBracketExpected("record merge")))
+	return ast.SRecordMerge{Exp1: exp1, Exp2: exp2, Span: span(begin.Span, end.Span), Comment: begin.Comment}
+}
+
+func (p *parser) parseMatch() ast.SExpr {
+	caseTk := p.expect(lexer.CASE, noErr())
+
+	exps := withIgnoreOffside(p, true, func() []ast.SExpr {
+		exps := between(p, lexer.COMMA, func() ast.SExpr {
+			return p.parseExpression(false)
+		})
+		p.expect(lexer.OF, withError(data.CASE_OF))
+		return exps
+	})
+	arity := len(exps)
+
+	align := p.iter.peek().Offside()
+	return withIgnoreOffside(p, false, func() ast.SExpr {
+		return withOffside(p, align, func() ast.SExpr {
+			cases := make([]ast.SCase, 0, 1)
+			first := p.parseCase()
+			if len(first.Pats) != arity {
+				throwError2(data.WrongArityToCase(len(first.Pats), arity), first.PatternSpan())
+			}
+			cases = append(cases, first)
+
+			tk := p.iter.peek()
+			for !p.iter.peekIsOffside() && !statementEnding[tk.Type] {
+				cas := p.parseCase()
+				if len(cas.Pats) != arity {
+					throwError2(data.WrongArityToCase(len(cas.Pats), arity), cas.PatternSpan())
+				}
+				cases = append(cases, cas)
+				tk = p.iter.peek()
+			}
+
+			return ast.SMatch{Exprs: exps, Cases: cases, Span: span(caseTk.Span, p.iter.current.Span), Comment: caseTk.Comment}
+		})
+	})
+}
+
+func (p *parser) parseCase() ast.SCase {
+	var guard ast.SExpr
+	pats := withIgnoreOffside(p, true, func() []ast.SPattern {
+		pats := between(p, lexer.COMMA, func() ast.SPattern {
+			return p.parsePattern(false)
+		})
+		if p.iter.peek().Type == lexer.IF {
+			p.iter.next()
+			guard = p.parseExpression(false)
+		}
+		p.expect(lexer.ARROW, withError(data.CASE_ARROW))
+		return pats
+	})
+	return withOffsideDef(p, func() ast.SCase {
+		return ast.SCase{Pats: pats, Exp: p.parseDo(), Guard: guard}
+	})
+}
+
+func (p *parser) tryParsePattern(isDestructuring bool) (ast.SPattern, bool) {
 	tk := p.iter.peek()
 	var pat ast.SPattern
 	switch tk.Type {
@@ -565,9 +1176,7 @@ func (p *parser) tryParsePattern(isDestructuring bool) *ast.SPattern {
 			if isDestructuring {
 				pat = ast.SCtorP{Ctor: ctor, Fields: []ast.SPattern{}, Span: span(tk.Span, ctor.Span)}
 			} else {
-				fields := tryParseListOf(p, false, func() *ast.SPattern {
-					return p.tryParsePattern(false)
-				})
+				fields := tryParseListOfDef(p, func() (ast.SPattern, bool) { return p.tryParsePattern(false) })
 				var end lexer.Span
 				if len(fields) == 0 {
 					end = ctor.Span
@@ -601,14 +1210,12 @@ func (p *parser) tryParsePattern(isDestructuring bool) *ast.SPattern {
 				end := p.iter.next().Span
 				pat = ast.SListP{Elems: []ast.SPattern{}, Span: span(tk.Span, end)}
 			} else {
-				elems := between(p, lexer.COMMA, func() ast.SPattern {
-					return p.parsePattern(false)
-				})
+				elems := between(p, lexer.COMMA, func() ast.SPattern { return p.parsePattern(false) })
 				if p.iter.peek().IsDoubleColon() {
 					p.iter.next()
 					tail := p.parsePattern(false)
 					end := p.expect(lexer.RSBRACKET, withError(data.RSBracketExpected("list pattern"))).Span
-					pat = ast.SListP{Elems: elems, Tail: &tail, Span: span(tk.Span, end)}
+					pat = ast.SListP{Elems: elems, Tail: tail, Span: span(tk.Span, end)}
 				} else {
 					end := p.expect(lexer.RSBRACKET, withError(data.RSBracketExpected("list pattern"))).Span
 					pat = ast.SListP{Elems: elems, Span: span(tk.Span, end)}
@@ -641,11 +1248,11 @@ func (p *parser) tryParsePattern(isDestructuring bool) *ast.SPattern {
 				}
 				pat = ast.STypeTest{Type: typ, Alias: name, Span: span(tk.Span, end)}
 			} else {
-				return nil
+				return nil, false
 			}
 		}
 	default:
-		return nil
+		return nil, false
 	}
 
 	// named, tuple and annotation patterns
@@ -653,27 +1260,24 @@ func (p *parser) tryParsePattern(isDestructuring bool) *ast.SPattern {
 	if token == lexer.AS {
 		p.iter.next()
 		name := p.expect(lexer.IDENT, withError(data.VARIABLE))
-		var res ast.SPattern = ast.SNamed{Pat: pat, Name: ast.Spanned[string]{Val: *name.Text, Span: name.Span}, Span: span(pat.GetSpan(), name.Span)}
-		return &res
+		return ast.SNamed{Pat: pat, Name: ast.Spanned[string]{Val: *name.Text, Span: name.Span}, Span: span(pat.GetSpan(), name.Span)}, true
 	}
 	if token == lexer.COLON {
 		varr, isVar := pat.(ast.SVarP)
 		if isVar {
 			p.iter.next()
 			ty := p.parseType(false)
-			var res ast.SPattern = ast.STypeAnnotationP{Par: varr.V, Type: ty, Span: span(pat.GetSpan(), ty.GetSpan())}
-			return &res
+			return ast.STypeAnnotationP{Par: varr.V, Type: ty, Span: span(pat.GetSpan(), ty.GetSpan())}, true
 		} else {
-			return &pat
+			return pat, true
 		}
 	}
 	if token == lexer.SEMICOLON {
 		p.iter.next()
 		p2 := p.parsePattern(isDestructuring)
-		var res ast.SPattern = ast.STupleP{P1: pat, P2: p2, Span: span(pat.GetSpan(), p2.GetSpan())}
-		return &res
+		return ast.STupleP{P1: pat, P2: p2, Span: span(pat.GetSpan(), p2.GetSpan())}, true
 	}
-	return &pat
+	return pat, true
 }
 
 func (p *parser) parseConstructor() ast.SConstructor {
@@ -706,23 +1310,21 @@ func (p *parser) parseTypeSignature() ast.SType {
 }
 
 func (p *parser) parseType(inCtor bool) ast.SType {
-	ty := p.parseTypeAtom(inCtor)
-	if ty == nil {
+	ty, success := p.parseTypeAtom(inCtor)
+	if !success {
 		throwError(withError(data.TYPE_DEF)(p.iter.peek()))
 	}
-	return *ty
+	return ty
 }
 
-func (p *parser) parseTypeAtom(inCtor bool) *ast.SType {
+func (p *parser) parseTypeAtom(inCtor bool) (ast.SType, bool) {
 	if p.iter.peekIsOffside() {
-		return nil
+		return nil, false
 	}
 
 	parseRowExtend := func() ast.STRowExtend {
 		tk := p.iter.current.Span
-		labels := between(p, lexer.COMMA, func() data.Tuple[string, ast.SType] {
-			return p.parseRecordTypeRow()
-		})
+		labels := between(p, lexer.COMMA, func() data.Tuple[string, ast.SType] { return p.parseRecordTypeRow() })
 		var rowInner ast.SType
 		if p.iter.peek().Type == lexer.PIPE {
 			p.iter.next()
@@ -750,19 +1352,17 @@ func (p *parser) parseTypeAtom(inCtor bool) *ast.SType {
 	case lexer.UPPERIDENT:
 		{
 			typ := *p.parseUpperIdent().Text
-			alias := data.None[string]()
+			var alias *string
 			if p.iter.peek().Type == lexer.DOT {
 				p.iter.next()
-				alias = data.Some(typ)
+				*alias = typ
 				typ = *p.expect(lexer.UPPERIDENT, withError(data.TYPEALIAS_DOT)).Text
 			}
 			if !inCtor {
-				ty = ast.STConst{Name: typ, Alias: alias.ValueOrNil(), Span: span(tk.Span, p.iter.current.Span)}
+				ty = ast.STConst{Name: typ, Alias: alias, Span: span(tk.Span, p.iter.current.Span)}
 			} else {
-				tconst := ast.STConst{Name: typ, Alias: alias.ValueOrNil(), Span: span(tk.Span, p.iter.current.Span)}
-				pars := tryParseListOf(p, true, func() *ast.SType {
-					return p.parseTypeAtom(true)
-				})
+				tconst := ast.STConst{Name: typ, Alias: alias, Span: span(tk.Span, p.iter.current.Span)}
+				pars := tryParseListOf(p, true, func() (ast.SType, bool) { return p.parseTypeAtom(true) })
 
 				if len(pars) == 0 {
 					ty = tconst
@@ -821,24 +1421,30 @@ func (p *parser) parseTypeAtom(inCtor bool) *ast.SType {
 			})
 		}
 	default:
-		return nil
+		return nil, false
 	}
 
 	if inCtor {
-		return &ty
+		return ty, true
 	}
 
 	if p.iter.peek().Type == lexer.ARROW {
 		p.iter.next()
 		ret := p.parseType(false)
-		var fun ast.SType = ast.STFun{Arg: ty, Ret: ret, Span: span(ty.GetSpan(), ret.GetSpan())}
-		return &fun
+		return ast.STFun{Arg: ty, Ret: ret, Span: span(ty.GetSpan(), ret.GetSpan())}, true
 	}
-	return &ty
+	return ty, true
 }
 
 func (p *parser) parseUpperIdent() lexer.Token {
 	return p.expect(lexer.UPPERIDENT, noErr())
+}
+
+func (p *parser) tryParseTypeVar() *string {
+	if p.iter.peek().Type == lexer.IDENT {
+		return p.expect(lexer.IDENT, noErr()).Text
+	}
+	return nil
 }
 
 func (p *parser) parseTypeVar() string {
@@ -867,9 +1473,8 @@ func (p *parser) parseMetadata() *ast.SMetadata {
 		return nil
 	}
 
-	begin := p.expect(lexer.METABRACKET, noErr())
+	//begin := p.expect(lexer.METABRACKET, noErr())
 	//rows := p.between(lexer.COMMA)
-	println(begin)
 	panic("")
 }
 
@@ -895,7 +1500,32 @@ func withIgnoreOffside[T any](p *parser, should bool, f func() T) T {
 	return f()
 }
 
-func tryParseListOf[T any](p *parser, incOffside bool, fn func() *T) []T {
+func tryParseListOf[T any](p *parser, incOffside bool, fn func() (T, bool)) []T {
+	acc := make([]T, 0)
+	if p.iter.peekIsOffside() {
+		return acc
+	}
+	elem, success := fn()
+	tmp := p.iter.offside
+	if incOffside {
+		p.iter.offside = tmp + 1
+	}
+	for success {
+		acc = append(acc, elem)
+		if p.iter.peekIsOffside() {
+			break
+		}
+		elem, success = fn()
+	}
+	p.iter.offside = tmp
+	return acc
+}
+
+func tryParseListOfDef[T any](p *parser, fn func() (T, bool)) []T {
+	return tryParseListOf(p, false, fn)
+}
+
+func tryParseListOfNil[T any](p *parser, incOffside bool, fn func() *T) []T {
 	acc := make([]T, 0)
 	if p.iter.peekIsOffside() {
 		return acc
@@ -914,6 +1544,14 @@ func tryParseListOf[T any](p *parser, incOffside bool, fn func() *T) []T {
 	}
 	p.iter.offside = tmp
 	return acc
+}
+
+func parseListOf[T any](p *parser, parser func() T, keep func(lexer.Token) bool) []T {
+	res := make([]T, 0, 1)
+	for !p.iter.peekIsOffside() && keep(p.iter.peek()) {
+		res = append(res, parser())
+	}
+	return res
 }
 
 func between[T any](p *parser, ttype lexer.TokenType, fun func() T) []T {
@@ -941,6 +1579,10 @@ func throwMismatchedIdentation(tk lexer.Token) {
 
 func throwError(err data.Tuple[string, lexer.Span]) any {
 	panic(ParserError{err.V1, err.V2})
+}
+
+func throwError2(msg string, span lexer.Span) any {
+	panic(ParserError{msg, span})
 }
 
 func withError(msg string) func(lexer.Token) data.Tuple[string, lexer.Span] {

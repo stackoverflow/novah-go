@@ -23,4 +23,6 @@
 - [ ] Full compilation cycle and runnable main
 - [ ] Support all Go primitives
 - [ ] Type constructors (ex: List Int)
-- [ ] Create a canonical formatter for the language
+- [ ] Type checker
+- [X] Create a canonical formatter for the language
+- [X] Lexer and parser

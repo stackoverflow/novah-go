@@ -27,13 +27,17 @@ func NewSpan2(ls int, cs int, le int, ce int) Span {
 	return Span{Pos{ls, cs}, Pos{le, ce}}
 }
 
+func (s Span) String() string {
+	return fmt.Sprintf("%d:%d - %d:%d", s.Start.Line, s.Start.Col, s.End.Line, s.End.Col)
+}
+
 // Returns true if there's no lines between these spans
 func (s Span) adjacent(other Span) bool {
 	return s.End.Line+1 == other.Start.Line
 }
 
 // Returns true if this ends on the same line as other starts
-func (s *Span) SameLine(other Span) bool {
+func (s Span) SameLine(other Span) bool {
 	return s.End.Line == other.Start.Line
 }
 
@@ -385,7 +389,7 @@ func (lex *Lexer) ident(init *rune) Token {
 		}
 	}
 
-	if str[0:2] == "__" {
+	if len(str) >= 2 && str[0:2] == "__" {
 		lex.lexError(fmt.Sprintf("Identifiers cannot start with a double underscore (__)."))
 	}
 
@@ -461,13 +465,8 @@ func (lex *Lexer) number(init rune, neg bool) Token {
 	}
 	sb.WriteRune(init)
 
-	for lex.HasMore() {
-		c := lex.peekNoErr()
-		if unicode.IsSpace(c) {
-			break
-		}
-		sb.WriteRune(c)
-	}
+	rest := lex.acceptManyStr("0123456789abcdefABCDEFoOxXbBeEpPi-+.")
+	sb.WriteString(rest)
 
 	str := sb.String()
 	var tk TokenType
@@ -559,12 +558,8 @@ func (lex *Lexer) lineComment() string {
 	var sb strings.Builder
 	lex.acceptMany('/')
 
-	for lex.HasMore() {
-		c := lex.next()
-		if c == '\n' {
-			break
-		}
-		sb.WriteRune(c)
+	for lex.HasMore() && lex.peekNoErr() != '\n' {
+		sb.WriteRune(lex.next())
 	}
 	return sb.String()
 }
@@ -586,7 +581,8 @@ func (lex *Lexer) multilineComment() string {
 		sb.WriteRune(c)
 		last = c
 	}
-	return sb.String()
+	str := sb.String()
+	return str[0 : len(str)-1]
 }
 
 var validEscapes map[rune]bool = map[rune]bool{'t': true, '\\': true, 'n': true, 'r': true, 'f': true, 'b': true, 'u': true}
@@ -619,7 +615,7 @@ func (lex *Lexer) readEscapes() (rune, string) {
 			if u1 == nil || u2 == nil || u3 == nil || u4 == nil {
 				lex.lexError("Unexpected UTF-8 escape character ")
 			}
-			str := fmt.Sprintf("%d%d%d%d", u1, u2, u3, u4)
+			str := fmt.Sprintf("%c%c%c%c", *u1, *u2, *u3, *u4)
 			u, _ := strconv.ParseInt(str, 16, 32)
 			return rune(u), "\\u" + str
 		}
@@ -630,13 +626,16 @@ func (lex *Lexer) readEscapes() (rune, string) {
 
 func (lex *Lexer) acceptMany(r rune) string {
 	var sb strings.Builder
-	for lex.HasMore() {
-		if lex.next() == r {
-			sb.WriteRune(r)
-			continue
-		} else {
-			break
-		}
+	for lex.HasMore() && lex.peekNoErr() == r {
+		sb.WriteRune(lex.next())
+	}
+	return sb.String()
+}
+
+func (lex *Lexer) acceptManyStr(str string) string {
+	var sb strings.Builder
+	for lex.HasMore() && strings.ContainsRune(str, lex.peekNoErr()) {
+		sb.WriteRune(lex.next())
 	}
 	return sb.String()
 }
