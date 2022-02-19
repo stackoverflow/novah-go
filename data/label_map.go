@@ -1,16 +1,14 @@
-package ast
+package data
 
 import (
 	"fmt"
 	"regexp"
-
-	"github.com/stackoverflow/novah-go/data"
 )
 
-type LabelMap[T any] []data.Tuple[string, T]
+type LabelMap[T any] []Tuple[string, T]
 
 func EmptyLabelMap[T any]() LabelMap[T] {
-	return []data.Tuple[string, T]{}
+	return []Tuple[string, T]{}
 }
 
 func ShowLabelMap[T fmt.Stringer](lm LabelMap[T]) string {
@@ -21,7 +19,7 @@ func ShowLabelMap[T fmt.Stringer](lm LabelMap[T]) string {
 
 var labelRegex = regexp.MustCompile("^[a-z](?:\\w+|_)*$")
 
-func showLabel(label string) string {
+func ShowLabel(label string) string {
 	if labelRegex.MatchString(label) {
 		return label
 	}
@@ -29,15 +27,23 @@ func showLabel(label string) string {
 }
 
 func ShowLabels[V any](labels LabelMap[V], f func(string, V) string) string {
-	return data.JoinToStringFunc(labels, ", ", func(tu data.Tuple[string, V]) string {
-		return f(showLabel(tu.V1), tu.V2)
+	return JoinToStringFunc(labels, ", ", func(tu Tuple[string, V]) string {
+		return f(ShowLabel(tu.V1), tu.V2)
 	})
 }
 
 func LabelValues[T any](m *LabelMap[T]) []T {
 	res := make([]T, len(*m))
-	for _, tu := range *m {
-		res = append(res, tu.V2)
+	for i, tu := range *m {
+		res[i] = tu.V2
+	}
+	return res
+}
+
+func LabelMapVals[T, R any](m LabelMap[T], mapper func(string, T) R) LabelMap[R] {
+	res := make([]Tuple[string, R], len(m))
+	for i, tu := range m {
+		res[i] = Tuple[string, R]{V1: tu.V1, V2: mapper(tu.V1, tu.V2)}
 	}
 	return res
 }

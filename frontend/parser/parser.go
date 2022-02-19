@@ -56,7 +56,7 @@ func (p *parser) parseFullModule() *ast.SModule {
 	mdef := p.parseModule()
 	p.moduleName = &mdef.name.Val
 
-	var imports []ast.SImport
+	var imports []ast.Import
 	next := p.iter.peek().Type
 	// TODO: parse foreign imports
 	if next == lexer.IMPORT {
@@ -124,8 +124,8 @@ func (p *parser) parseModuleName() ast.Spanned[string] {
 	return ast.Spanned[string]{Val: name, Span: span}
 }
 
-func (p *parser) parseImports() []ast.SImport {
-	imps := make([]ast.SImport, 0, 2)
+func (p *parser) parseImports() []ast.Import {
+	imps := make([]ast.Import, 0, 2)
 	for {
 		if p.iter.peek().Type == lexer.IMPORT {
 			imps = append(imps, p.parseImport())
@@ -136,10 +136,10 @@ func (p *parser) parseImports() []ast.SImport {
 	return imps
 }
 
-func (p *parser) parseImport() ast.SImport {
+func (p *parser) parseImport() ast.Import {
 	impTk := p.expect(lexer.IMPORT, noErr())
 	mod := p.parseModuleName()
-	var impor ast.SImport
+	var impor ast.Import
 	switch p.iter.peek().Type {
 	case lexer.LPAREN:
 		{
@@ -147,41 +147,41 @@ func (p *parser) parseImport() ast.SImport {
 			if p.iter.peek().Type == lexer.AS {
 				p.iter.next()
 				alias := p.expect(lexer.UPPERIDENT, withError(data.IMPORT_ALIAS))
-				impor = ast.SImport{Module: mod, Defs: imp, Alias: alias.Text, Span: span(impTk.Span, p.iter.current.Span)}
+				impor = ast.Import{Module: mod, Defs: imp, Alias: alias.Text, Span: span(impTk.Span, p.iter.current.Span)}
 			} else {
-				impor = ast.SImport{Module: mod, Defs: imp, Span: span(impTk.Span, p.iter.current.Span)}
+				impor = ast.Import{Module: mod, Defs: imp, Span: span(impTk.Span, p.iter.current.Span)}
 			}
 		}
 	case lexer.AS:
 		{
 			p.iter.next()
 			alias := p.expect(lexer.UPPERIDENT, withError(data.IMPORT_ALIAS))
-			impor = ast.SImport{Module: mod, Alias: alias.Text, Span: span(impTk.Span, p.iter.current.Span)}
+			impor = ast.Import{Module: mod, Alias: alias.Text, Span: span(impTk.Span, p.iter.current.Span)}
 		}
 	}
 	impor.Comment = impTk.Comment
 	return impor
 }
 
-func (p *parser) parseDeclarationRefs() []ast.SDeclarationRef {
+func (p *parser) parseDeclarationRefs() []ast.DeclarationRef {
 	p.expect(lexer.LPAREN, withError(data.LParensExpected("import")))
 	if p.iter.peek().Type == lexer.RPAREN {
 		throwError(withError(data.EmptyImport("Import"))(p.iter.peek()))
 	}
 
-	exps := between(p, lexer.COMMA, func() ast.SDeclarationRef { return p.parseDeclarationRef() })
+	exps := between(p, lexer.COMMA, func() ast.DeclarationRef { return p.parseDeclarationRef() })
 
 	p.expect(lexer.RPAREN, withError(data.RParensExpected("import")))
 	return exps
 }
 
-func (p *parser) parseDeclarationRef() ast.SDeclarationRef {
+func (p *parser) parseDeclarationRef() ast.DeclarationRef {
 	sp := p.iter.next()
 	switch sp.Type {
 	case lexer.IDENT:
-		return ast.SDeclarationRef{Tag: ast.VAR, Name: spanned(*sp.Text, sp.Span)}
+		return ast.DeclarationRef{Tag: ast.VAR, Name: spanned(*sp.Text, sp.Span)}
 	case lexer.OP:
-		return ast.SDeclarationRef{Tag: ast.VAR, Name: spanned(*sp.Text, sp.Span)}
+		return ast.DeclarationRef{Tag: ast.VAR, Name: spanned(*sp.Text, sp.Span)}
 	case lexer.UPPERIDENT:
 		{
 			binder := spanned(*sp.Text, sp.Span)
@@ -202,13 +202,13 @@ func (p *parser) parseDeclarationRef() ast.SDeclarationRef {
 					})
 				}
 				end := p.expect(lexer.RPAREN, withError(data.DECLARATION_REF_ALL))
-				return ast.SDeclarationRef{Tag: ast.TYPE, Name: binder, Span: span(sp.Span, end.Span), Ctors: ctors, All: all}
+				return ast.DeclarationRef{Tag: ast.TYPE, Name: binder, Span: span(sp.Span, end.Span), Ctors: ctors, All: all}
 			} else {
-				return ast.SDeclarationRef{Tag: ast.TYPE, Name: binder, Span: sp.Span}
+				return ast.DeclarationRef{Tag: ast.TYPE, Name: binder, Span: sp.Span}
 			}
 		}
 	default:
-		return throwError(withError(data.IMPORT_REFER)(sp)).(ast.SDeclarationRef)
+		return throwError(withError(data.IMPORT_REFER)(sp)).(ast.DeclarationRef)
 	}
 }
 
@@ -1420,7 +1420,7 @@ func (p *parser) parseTypeAtom(inCtor bool) (ast.SType, bool) {
 						typ := p.parseType(false)
 						end := p.expect(lexer.RBRACKET, withError(data.RBracketExpected("record type")))
 						sp := span(tk.Span, end.Span)
-						return ast.STRecord{Row: ast.STRowExtend{Labels: ast.EmptyLabelMap[ast.SType](), Row: typ, Span: sp}, Span: sp}
+						return ast.STRecord{Row: ast.STRowExtend{Labels: data.EmptyLabelMap[ast.SType](), Row: typ, Span: sp}, Span: sp}
 					}
 				default:
 					{

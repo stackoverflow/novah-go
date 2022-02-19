@@ -56,16 +56,6 @@ func FilterSliceIsInstance[T, R any](s []T) []R {
 	return res
 }
 
-// Returns the (first) index of elem in the slice
-func SliceIndexOf[T comparable](s []T, elem T) int {
-	for i, e := range s {
-		if e == elem {
-			return i
-		}
-	}
-	return -1
-}
-
 // Returns the last index of elem in the slice
 func SliceLastIndexOf[T comparable](s []T, elem T) int {
 	index := -1
@@ -103,17 +93,4 @@ func InSlice[T comparable](s []T, elem T) bool {
 		}
 	}
 	return false
-}
-
-// Compares two slices for equality
-func EqualsSlice[T comparable](s1 []T, s2 []T) bool {
-	if len(s1) != len(s2) {
-		return false
-	}
-	for i := range s1 {
-		if s1[i] != s2[i] {
-			return false
-		}
-	}
-	return true
 }

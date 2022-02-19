@@ -9,5 +9,5 @@ var Holla = "Holla mundo"
 
 //line main.novah:6
 func main() {
-	fmt.Println(Holla[1:])
+	fmt.Println(string(Holla[len(Holla)-1]))
 }

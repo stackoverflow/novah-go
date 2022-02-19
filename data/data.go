@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+type Number interface {
+	uint8 | uint16 | uint32 | uint64 | int8 | int16 | int32 | int64 | int
+}
+
 type Tuple[T any, U any] struct {
 	V1 T
 	V2 U
@@ -108,4 +112,16 @@ func PrependIdent(str, ident string) string {
 		bd.WriteString(s)
 	}
 	return bd.String()
+}
+
+// Creates a range with the specified start and end (inclusive)
+func Range[N Number](from, to N) []N {
+	ran := make([]N, to-from)
+
+	i := 0
+	for x := from; x <= to; x++ {
+		ran[i] = x
+		i++
+	}
+	return ran
 }

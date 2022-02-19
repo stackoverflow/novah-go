@@ -3,6 +3,7 @@ package parser
 import (
 	"github.com/stackoverflow/novah-go/data"
 	"github.com/stackoverflow/novah-go/frontend/ast"
+	"golang.org/x/exp/slices"
 )
 
 type Fixity = int
@@ -34,7 +35,7 @@ func parseApplication(exps []ast.SExpr) ast.SExpr {
 		var high ast.SExpr = highest
 		switch getFixity(highest) {
 		case LEFT:
-			res = resolveOp(res, func(exps []ast.SExpr) int { return data.SliceIndexOf(exps, high) })
+			res = resolveOp(res, func(exps []ast.SExpr) int { return slices.Index(exps, high) })
 		case RIGHT:
 			res = resolveOp(res, func(exps []ast.SExpr) int { return data.SliceLastIndexOf(exps, high) })
 		}

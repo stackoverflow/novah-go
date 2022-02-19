@@ -38,7 +38,7 @@ const (
 type SModule struct {
 	Name                Spanned[string]
 	SourceName          string
-	Imports             []SImport
+	Imports             []Import
 	Foreigns            []SForeignImport
 	Decls               []SDecl
 	Meta                *SMetadata
@@ -49,7 +49,7 @@ type SModule struct {
 }
 
 // All = true means all constructors are imported
-type SDeclarationRef struct {
+type DeclarationRef struct {
 	Tag   SRefType
 	Name  Spanned[string]
 	Span  lexer.Span
@@ -57,13 +57,13 @@ type SDeclarationRef struct {
 	All   bool
 }
 
-type SImport struct {
+type Import struct {
 	Module  Spanned[string]
 	Span    lexer.Span
 	Alias   *string
 	Auto    bool
 	Comment *lexer.Comment
-	Defs    []SDeclarationRef
+	Defs    []DeclarationRef
 }
 
 type SForeignImport struct {
@@ -381,7 +381,7 @@ type SRecordSelect struct {
 }
 
 type SRecordExtend struct {
-	Labels  LabelMap[SExpr]
+	Labels  data.LabelMap[SExpr]
 	Exp     SExpr
 	Span    lexer.Span
 	Comment *lexer.Comment
@@ -1025,7 +1025,7 @@ type SCtorP struct {
 }
 
 type SRecordP struct {
-	Labels LabelMap[SPattern]
+	Labels data.LabelMap[SPattern]
 	Span   lexer.Span
 }
 
@@ -1116,7 +1116,7 @@ func (p SRecordP) GetSpan() lexer.Span {
 	return p.Span
 }
 func (p SRecordP) String() string {
-	return ShowLabelMap(p.Labels)
+	return data.ShowLabelMap(p.Labels)
 }
 
 func (_ SListP) sPattern() {}
@@ -1244,7 +1244,7 @@ type STRowEmpty struct {
 }
 
 type STRowExtend struct {
-	Labels LabelMap[SType]
+	Labels data.LabelMap[SType]
 	Row    SType
 	Span   lexer.Span
 }
@@ -1317,7 +1317,7 @@ func (t STRowExtend) GetSpan() lexer.Span {
 	return t.Span
 }
 func (t STRowExtend) String() string {
-	labels := ShowLabels(t.Labels, func(k string, v SType) string {
+	labels := data.ShowLabels(t.Labels, func(k string, v SType) string {
 		return fmt.Sprintf("%s : %s", k, v.String())
 	})
 	return fmt.Sprintf("[ %s ]", labels)
@@ -1369,7 +1369,7 @@ func FindFreeVars(ty SType, bound []string) []string {
 		case STRowExtend:
 			{
 				toCheck = append(toCheck, v.Row)
-				toCheck = append(toCheck, LabelValues(&v.Labels)...)
+				toCheck = append(toCheck, data.LabelValues(&v.Labels)...)
 			}
 		case STImplicit:
 			toCheck = append(toCheck, v.Type)

@@ -718,10 +718,21 @@ func (lex *Lexer) advancePos(r rune) rune {
 	return r
 }
 
-// Returns true if the first char in the string is uppercase
+// Returns true if the first char in the string is upper case
 func IsUpper(s string) bool {
 	for _, r := range s {
 		if unicode.IsUpper(r) {
+			return true
+		}
+		break
+	}
+	return false
+}
+
+// Returns true if the first char in the string is lower case
+func IsLower(s string) bool {
+	for _, r := range s {
+		if unicode.IsLower(r) {
 			return true
 		}
 		break

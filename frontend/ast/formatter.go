@@ -2,12 +2,12 @@ package ast
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/stackoverflow/novah-go/data"
 	"github.com/stackoverflow/novah-go/frontend/lexer"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -39,9 +39,9 @@ func (f *Formatter) ShowModule(m SModule) string {
 
 	if len(m.Imports) > 0 {
 		build.WriteString("\n\n")
-		imps := make([]SImport, len(m.Imports))
+		imps := make([]Import, len(m.Imports))
 		copy(imps, m.Imports)
-		sort.SliceStable(imps, func(i, j int) bool { return imps[i].Module.Val < imps[j].Module.Val })
+		slices.SortStableFunc(imps, func(i, j Import) bool { return i.Module.Val < j.Module.Val })
 		build.WriteString(data.JoinToStringFunc(imps, "\n", f.ShowImport))
 	}
 
@@ -54,7 +54,7 @@ func (f *Formatter) ShowModule(m SModule) string {
 	return build.String()
 }
 
-func (f *Formatter) ShowImport(imp SImport) string {
+func (f *Formatter) ShowImport(imp Import) string {
 	cmt := ""
 	if imp.Comment != nil {
 		cmt = f.ShowComment(*imp.Comment, true)
@@ -70,7 +70,7 @@ func (f *Formatter) ShowImport(imp SImport) string {
 	return fmt.Sprintf("%simport %s%s%s", cmt, imp.Module.Val, exposes, alias)
 }
 
-func (f *Formatter) ShowDeclarationRef(ref SDeclarationRef) string {
+func (f *Formatter) ShowDeclarationRef(ref DeclarationRef) string {
 	if ref.Tag == VAR {
 		return ref.Name.Val
 	}
@@ -322,17 +322,17 @@ func (f *Formatter) ShowExpr(exp SExpr) string {
 		}
 	case SRecordRestrict:
 		{
-			labels := data.JoinToStringFunc(e.Labels, ", ", func(l string) string { return showLabel(l) })
+			labels := data.JoinToStringFunc(e.Labels, ", ", func(l string) string { return data.ShowLabel(l) })
 			estr = fmt.Sprintf("{ - %s | %s }", labels, f.ShowExpr(e.Exp))
 		}
 	case SRecordUpdate:
 		{
-			labels := data.JoinToStringFunc(e.Labels, ".", func(l Spanned[string]) string { return showLabel(l.Val) })
+			labels := data.JoinToStringFunc(e.Labels, ".", func(l Spanned[string]) string { return data.ShowLabel(l.Val) })
 			estr = fmt.Sprintf("{ .%s = %s | %s }", labels, f.ShowExpr(e.Val), f.ShowExpr(e.Exp))
 		}
 	case SRecordExtend:
 		{
-			labels := ShowLabels(e.Labels, f.showLabelExpr)
+			labels := data.ShowLabels(e.Labels, f.showLabelExpr)
 			_, isEmpty := e.Exp.(SRecordEmpty)
 			if isEmpty {
 				estr = fmt.Sprintf("{ %s }", labels)
@@ -434,7 +434,7 @@ func (f *Formatter) ShowPattern(pat SPattern) string {
 		return fmt.Sprintf("(%s)", f.ShowPattern(p.Pat))
 	case SRecordP:
 		{
-			labels := ShowLabels(p.Labels, func(l string, pat SPattern) string { return fmt.Sprintf("%s: %s", l, f.ShowPattern(pat)) })
+			labels := data.ShowLabels(p.Labels, func(l string, pat SPattern) string { return fmt.Sprintf("%s: %s", l, f.ShowPattern(pat)) })
 			return fmt.Sprintf("{ %s }", labels)
 		}
 	case SListP:
@@ -499,7 +499,7 @@ func (f *Formatter) ShowType(ty SType) string {
 		return "{}"
 	case STRowExtend:
 		{
-			labels := ShowLabels(t.Labels, f.showLabelType)
+			labels := data.ShowLabels(t.Labels, f.showLabelType)
 			_, isEmpty := t.Row.(STRowEmpty)
 			if isEmpty {
 				return fmt.Sprintf("{ %s }", labels)
