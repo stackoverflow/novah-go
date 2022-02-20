@@ -32,12 +32,11 @@ func parseApplication(exps []ast.SExpr) ast.SExpr {
 	res := resExps
 	highest, found := getHighestPrecedence(res)
 	for found {
-		var high ast.SExpr = highest
 		switch getFixity(highest) {
 		case LEFT:
-			res = resolveOp(res, func(exps []ast.SExpr) int { return slices.Index(exps, high) })
+			res = resolveOp(res, func(exps []ast.SExpr) int { return slices.IndexFunc(exps, findOp(highest)) })
 		case RIGHT:
-			res = resolveOp(res, func(exps []ast.SExpr) int { return data.SliceLastIndexOf(exps, high) })
+			res = resolveOp(res, func(exps []ast.SExpr) int { return data.SliceLastIndexOfFunc(exps, findOp(highest)) })
 		}
 		highest, found = getHighestPrecedence(res)
 	}
@@ -178,6 +177,17 @@ func getHighestPrecedence(exps []ast.SExpr) (ast.SOperator, bool) {
 		}
 	}
 	return op, max != -1
+}
+
+func findOp(op ast.SOperator) func(ast.SExpr) bool {
+	return func(exp ast.SExpr) bool {
+		switch e := exp.(type) {
+		case ast.SOperator:
+			return op == e
+		default:
+			return false
+		}
+	}
 }
 
 func lastOrNil(exps []ast.SExpr) ast.SExpr {

@@ -112,6 +112,39 @@ Example: \x -> x + 3`
 	DATA_EQUALS = "Expected equals `=` after data name declaration."
 
 	INVALID_OPERATOR_DECL = "Operator declarations have to be defined between parentheses."
+
+	IMPLICIT_PATTERN = "Implicit patterns can only be used in function parameters before any destructuring happens."
+
+	ANNOTATION_PATTERN = "Type annotation patterns can only be used in function variables"
+
+	NOT_A_FIELD = "Operator `<-` expects a foreign field as first parameter and cannot be partially applied."
+
+	LET_DO_LAST = "Do expression cannot end with a let statement."
+
+	ANONYMOUS_FUNCTION_ARGUMENT = `Invalid context for anonymous function argument.
+
+Valid ones are:
+Operator sections: (_ + 1)
+Record access: _.name
+Record values: { name: _ }, { age: 10 | _ }
+Record restrictions: { - name | _ }
+Record merges: { + _, rec }
+Index access: _.[1], list.[_]
+Option unwrap: _!!
+Ifs: if _ then 1 else 0, if check then _ else _
+Cases: case _ of ...
+Foreign fields: (_ : MyClass)#-field
+Foreign methods: (_ : String)#endsWith("."), Math#exp(_)`
+
+	RETURN_EXPR = "return keyword can only be used inside a computation expression."
+
+	YIELD_EXPR = "yield keyword can only be used inside a computation expression."
+
+	FOR_EXPR = "for expression can only be used inside a computation expression."
+
+	LET_BANG = "`let!` syntax can only be used inside a computation expression."
+
+	DO_BANG = "`do!` syntax can only be used inside a computation expression."
 )
 
 func UndefinedVarInCtor(name string, typeVars []string) string {
@@ -140,6 +173,14 @@ func WrongArityToCase(got int, expected int) string {
 
 func OpTooLong(op string) string {
 	return fmt.Sprintf("Operator %s is too long. Operators cannot contain more than 3 characters.", op)
+}
+
+func ShadowedVariable(name string) string {
+	return fmt.Sprintf("Value %s is shadowing another value with the same name.", name)
+}
+
+func NoAliasFound(alias string) string {
+	return fmt.Sprintf("Could not find import alias %s.", alias)
 }
 
 func LiteralExpected(name string) string {

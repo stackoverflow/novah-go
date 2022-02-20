@@ -5,7 +5,6 @@ package ast
 import (
 	"fmt"
 	"strconv"
-	"unicode"
 
 	"github.com/stackoverflow/novah-go/data"
 	"github.com/stackoverflow/novah-go/frontend/lexer"
@@ -557,6 +556,12 @@ func (e SVar) String() string {
 	}
 	return e.Name
 }
+func (e SVar) Fullname() string {
+	if e.Alias != nil {
+		return fmt.Sprintf("%s.%s", *e.Alias, e.Name)
+	}
+	return e.Name
+}
 
 func (_ SOperator) sExpr() {}
 func (e SOperator) GetSpan() lexer.Span {
@@ -566,6 +571,12 @@ func (e SOperator) GetComment() *lexer.Comment {
 	return e.Comment
 }
 func (e SOperator) String() string {
+	if e.Alias != nil {
+		return fmt.Sprintf("%s.%s", *e.Alias, e.Name)
+	}
+	return e.Name
+}
+func (e SOperator) Fullname() string {
 	if e.Alias != nil {
 		return fmt.Sprintf("%s.%s", *e.Alias, e.Name)
 	}
@@ -585,6 +596,12 @@ func (e SImplicitVar) String() string {
 	}
 	return e.Name
 }
+func (e SImplicitVar) Fullname() string {
+	if e.Alias != nil {
+		return fmt.Sprintf("%s.%s", *e.Alias, e.Name)
+	}
+	return e.Name
+}
 
 func (_ SConstructor) sExpr() {}
 func (e SConstructor) GetSpan() lexer.Span {
@@ -594,6 +611,12 @@ func (e SConstructor) GetComment() *lexer.Comment {
 	return e.Comment
 }
 func (e SConstructor) String() string {
+	if e.Alias != nil {
+		return fmt.Sprintf("%s.%s", *e.Alias, e.Name)
+	}
+	return e.Name
+}
+func (e SConstructor) Fullname() string {
 	if e.Alias != nil {
 		return fmt.Sprintf("%s.%s", *e.Alias, e.Name)
 	}
@@ -976,7 +999,7 @@ type SLetDef interface {
 
 type SLetBind struct {
 	Expr       SExpr
-	Name       Spanned[string]
+	Name       SBinder
 	Pats       []SPattern
 	IsInstance bool
 	Type       SType
@@ -993,6 +1016,12 @@ func (def SLetBind) GetExpr() SExpr {
 
 func (def SLetPat) GetExpr() SExpr {
 	return def.Expr
+}
+
+type SBinder struct {
+	Name       string
+	Span       lexer.Span
+	IsImplicit bool
 }
 
 ///////////////////////////////////////////////
@@ -1116,7 +1145,7 @@ func (p SRecordP) GetSpan() lexer.Span {
 	return p.Span
 }
 func (p SRecordP) String() string {
-	return data.ShowLabelMap(p.Labels)
+	return data.ShowRaw(p.Labels)
 }
 
 func (_ SListP) sPattern() {}
@@ -1199,184 +1228,6 @@ func (p STypeAnnotationP) GetSpan() lexer.Span {
 }
 func (p STypeAnnotationP) String() string {
 	return fmt.Sprintf("%s : %s", p.Par.String(), p.Type.String())
-}
-
-////////////////////////////
-// source types
-////////////////////////////
-
-type SType interface {
-	sType()
-	GetSpan() lexer.Span
-	fmt.Stringer
-}
-
-type STConst struct {
-	Name  string
-	Alias *string
-	Span  lexer.Span
-}
-
-type STApp struct {
-	Type  SType
-	Types []SType
-	Span  lexer.Span
-}
-
-type STFun struct {
-	Arg  SType
-	Ret  SType
-	Span lexer.Span
-}
-
-type STParens struct {
-	Type SType
-	Span lexer.Span
-}
-
-type STRecord struct {
-	Row  SType
-	Span lexer.Span
-}
-
-type STRowEmpty struct {
-	Span lexer.Span
-}
-
-type STRowExtend struct {
-	Labels data.LabelMap[SType]
-	Row    SType
-	Span   lexer.Span
-}
-
-type STImplicit struct {
-	Type SType
-	Span lexer.Span
-}
-
-func (t STConst) sType() {}
-func (t STConst) GetSpan() lexer.Span {
-	return t.Span
-}
-func (t STConst) String() string {
-	return t.Name
-}
-func (t STConst) Fullname() string {
-	if t.Alias != nil {
-		return fmt.Sprintf("%s.%s", *t.Alias, t.Name)
-	}
-	return t.Name
-}
-
-func (t STApp) sType() {}
-func (t STApp) GetSpan() lexer.Span {
-	return t.Span
-}
-func (t STApp) String() string {
-	sname := t.Type.String()
-	if len(t.Types) == 0 {
-		return sname
-	}
-	return fmt.Sprintf("%s %s", sname, data.JoinToString(t.Types, " "))
-}
-
-func (_ STFun) sType() {}
-func (t STFun) GetSpan() lexer.Span {
-	return t.Span
-}
-func (t STFun) String() string {
-	return fmt.Sprintf("%s -> %s", t.Arg.String(), t.Ret.String())
-}
-
-func (_ STParens) sType() {}
-func (t STParens) GetSpan() lexer.Span {
-	return t.Span
-}
-func (t STParens) String() string {
-	return fmt.Sprintf("(%s)", t.Type.String())
-}
-
-func (_ STImplicit) sType() {}
-func (t STImplicit) GetSpan() lexer.Span {
-	return t.Span
-}
-func (t STImplicit) String() string {
-	return fmt.Sprintf("{{ %s }}", t.Type.String())
-}
-
-func (_ STRowEmpty) sType() {}
-func (t STRowEmpty) GetSpan() lexer.Span {
-	return t.Span
-}
-func (t STRowEmpty) String() string {
-	return "[]"
-}
-
-func (_ STRowExtend) sType() {}
-func (t STRowExtend) GetSpan() lexer.Span {
-	return t.Span
-}
-func (t STRowExtend) String() string {
-	labels := data.ShowLabels(t.Labels, func(k string, v SType) string {
-		return fmt.Sprintf("%s : %s", k, v.String())
-	})
-	return fmt.Sprintf("[ %s ]", labels)
-}
-
-func (_ STRecord) sType() {}
-func (t STRecord) GetSpan() lexer.Span {
-	return t.Span
-}
-func (t STRecord) String() string {
-	switch t.Row.(type) {
-	case STRowEmpty:
-		return "{}"
-	case STRowExtend:
-		{
-			rows := t.Row.String()
-			return fmt.Sprintf("{%s}", rows[1:len(rows)-1])
-		}
-	default:
-		return fmt.Sprintf("{ | %s }", t.Row.String())
-	}
-}
-
-func FindFreeVars(ty SType, bound []string) []string {
-	res := make([]string, 0, 2)
-	toCheck := []SType{ty}
-
-	for len(toCheck) > 0 {
-		t := toCheck[0]
-		switch v := t.(type) {
-		case STConst:
-			{
-				ch := rune(v.Name[0])
-				if unicode.IsUpper(ch) && data.InSlice(bound, v.Name) {
-					res = append(res, v.Name)
-				}
-			}
-		case STFun:
-			toCheck = append(toCheck, v.Arg, v.Ret)
-		case STApp:
-			{
-				toCheck = append(toCheck, v.Type)
-				toCheck = append(toCheck, v.Types...)
-			}
-		case STParens:
-			toCheck = append(toCheck, v.Type)
-		case STRecord:
-			toCheck = append(toCheck, v.Row)
-		case STRowExtend:
-			{
-				toCheck = append(toCheck, v.Row)
-				toCheck = append(toCheck, data.LabelValues(&v.Labels)...)
-			}
-		case STImplicit:
-			toCheck = append(toCheck, v.Type)
-		}
-		toCheck = toCheck[1:]
-	}
-	return res
 }
 
 // helpers

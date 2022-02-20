@@ -44,7 +44,7 @@ type Type interface {
 	sType()
 	Clone() Type
 	GetSpan() lexer.Span
-	WithSpan(span lexer.Span) Type
+	WithSpan(lexer.Span) Type
 }
 
 type TConst struct {

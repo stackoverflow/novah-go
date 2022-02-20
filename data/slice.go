@@ -8,6 +8,19 @@ func MapSlice[T, R any](sli []T, fun func(T) R) []R {
 	return res
 }
 
+// Like MapSlice but short circuits in case of error
+func MapSliceError[T, R any](sli []T, fun func(T) (R, error)) ([]R, error) {
+	res := make([]R, len(sli))
+	for i, x := range sli {
+		elem, err := fun(x)
+		if err != nil {
+			return nil, err
+		}
+		res[i] = elem
+	}
+	return res, nil
+}
+
 func FlatMapSlice[T, R any](s []T, fun func(T) []R) []R {
 	res := make([]R, 0, len(s))
 	for _, par := range s {
@@ -67,6 +80,17 @@ func SliceLastIndexOf[T comparable](s []T, elem T) int {
 	return index
 }
 
+// Returns the last index of elem in the slice
+func SliceLastIndexOfFunc[T any](s []T, fun func(T) bool) int {
+	index := -1
+	for i, e := range s {
+		if fun(e) {
+			index = i
+		}
+	}
+	return index
+}
+
 // Delete the element at index from this slice
 // requires the 0-value of this type
 func DeleteAtSlice[T any](sli []T, at int, zero T) []T {
@@ -93,4 +117,18 @@ func InSlice[T comparable](s []T, elem T) bool {
 		}
 	}
 	return false
+}
+
+// Returns both slices zipped together.
+// The result will be the size of the smallest slice
+func ZipSlices[T, R any](s1 []T, s2 []R) []Tuple[T, R] {
+	size := len(s1)
+	if len(s2) < size {
+		size = len(s2)
+	}
+	res := make([]Tuple[T, R], size)
+	for i := 0; i < size; i++ {
+		res[i] = Tuple[T, R]{V1: s1[i], V2: s2[i]}
+	}
+	return res
 }

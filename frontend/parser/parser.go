@@ -946,7 +946,7 @@ func (p *parser) parseLetDefBind(isInstance bool) ast.SLetDef {
 	} else {
 		exp = p.parseDo()
 	}
-	return ast.SLetBind{Expr: exp, Name: ast.Spanned[string]{Val: name, Span: ident.Span}, Pats: vars, IsInstance: isInstance, Type: ty}
+	return ast.SLetBind{Expr: exp, Name: ast.SBinder{Name: name, Span: ident.Span}, Pats: vars, IsInstance: isInstance, Type: ty}
 }
 
 func (p *parser) parseLetDefPattern(isFor bool) ast.SLetPat {
@@ -1001,7 +1001,7 @@ func (p *parser) parseRecordOrImplicit() ast.SExpr {
 			p.iter.next()
 			return p.parseRecordMerge(begin)
 		}
-		rows := between(p, lexer.COMMA, func() data.Tuple[string, ast.SExpr] { return p.parseRecordRow() })
+		rows := between(p, lexer.COMMA, func() data.Entry[ast.SExpr] { return p.parseRecordRow() })
 		var exp ast.SExpr
 		if p.iter.peek().Type == lexer.PIPE {
 			p.iter.next()
@@ -1010,19 +1010,19 @@ func (p *parser) parseRecordOrImplicit() ast.SExpr {
 			exp = ast.SRecordEmpty{}
 		}
 		end := p.expect(lexer.RBRACKET, withError(data.RBracketExpected("record")))
-		return ast.SRecordExtend{Labels: rows, Exp: exp, Span: span(begin.Span, end.Span), Comment: begin.Comment}
+		return ast.SRecordExtend{Labels: data.LabelMapFrom(rows), Exp: exp, Span: span(begin.Span, end.Span), Comment: begin.Comment}
 	})
 }
 
-func (p *parser) parseRecordRow() data.Tuple[string, ast.SExpr] {
+func (p *parser) parseRecordRow() data.Entry[ast.SExpr] {
 	label := p.parseLabel()
 	if p.iter.peek().Type != lexer.COLON && label.Type == lexer.IDENT {
 		exp := ast.SVar{Name: label.Value.(string), Span: label.Span, Comment: label.Comment}
-		return data.Tuple[string, ast.SExpr]{V1: label.Value.(string), V2: exp}
+		return data.Entry[ast.SExpr]{Label: label.Value.(string), Val: exp}
 	}
 	p.expect(lexer.COLON, withError(data.RECORD_COLON))
 	exp := p.parseExpression(false)
-	return data.Tuple[string, ast.SExpr]{V1: label.Value.(string), V2: exp}
+	return data.Entry[ast.SExpr]{Label: label.Value.(string), Val: exp}
 }
 
 func (p *parser) parseRecordSetOrUpdate(begin lexer.Token) ast.SExpr {
@@ -1207,11 +1207,11 @@ func (p *parser) tryParsePattern(isDestructuring bool) (ast.SPattern, bool) {
 				end := p.expect(lexer.RBRACKET, withError(data.INSTANCE_VAR))
 				pat = ast.SImplicitP{Pat: pat, Span: span(tk.Span, end.Span)}
 			} else {
-				rows := between(p, lexer.COMMA, func() data.Tuple[string, ast.SPattern] {
+				rows := between(p, lexer.COMMA, func() data.Entry[ast.SPattern] {
 					return p.parsePatternRow()
 				})
 				end := p.expect(lexer.RBRACKET, withError(data.RBracketExpected("record pattern"))).Span
-				pat = ast.SRecordP{Labels: rows, Span: span(tk.Span, end)}
+				pat = ast.SRecordP{Labels: data.LabelMapFrom(rows), Span: span(tk.Span, end)}
 			}
 		}
 	case lexer.LSBRACKET:
@@ -1304,15 +1304,15 @@ func (p *parser) parseConstructor() ast.SConstructor {
 	return ast.SConstructor{Name: *ident.Text, Alias: alias, Span: span(tk.Span, ident.Span), Comment: tk.Comment}
 }
 
-func (p *parser) parsePatternRow() data.Tuple[string, ast.SPattern] {
+func (p *parser) parsePatternRow() data.Entry[ast.SPattern] {
 	label := p.parseLabel()
 	if p.iter.peek().Type != lexer.COLON && label.Type == lexer.IDENT {
 		v := ast.SVar{Name: label.Value.(string), Span: label.Span}
-		return data.Tuple[string, ast.SPattern]{V1: label.Value.(string), V2: ast.SVarP{V: v}}
+		return data.Entry[ast.SPattern]{Label: label.Value.(string), Val: ast.SVarP{V: v}}
 	}
 	p.expect(lexer.COLON, withError(data.RECORD_COLON))
 	pat := p.parsePattern(false)
-	return data.Tuple[string, ast.SPattern]{V1: label.Value.(string), V2: pat}
+	return data.Entry[ast.SPattern]{Label: label.Value.(string), Val: pat}
 }
 
 func (p *parser) parseTypeSignature() ast.SType {
@@ -1335,7 +1335,7 @@ func (p *parser) parseTypeAtom(inCtor bool) (ast.SType, bool) {
 
 	parseRowExtend := func() ast.STRowExtend {
 		tk := p.iter.current.Span
-		labels := between(p, lexer.COMMA, func() data.Tuple[string, ast.SType] { return p.parseRecordTypeRow() })
+		labels := between(p, lexer.COMMA, func() data.Entry[ast.SType] { return p.parseRecordTypeRow() })
 		var rowInner ast.SType
 		if p.iter.peek().Type == lexer.PIPE {
 			p.iter.next()
@@ -1343,7 +1343,7 @@ func (p *parser) parseTypeAtom(inCtor bool) (ast.SType, bool) {
 		} else {
 			rowInner = ast.STRowEmpty{Span: span(tk, p.iter.current.Span)}
 		}
-		return ast.STRowExtend{Labels: labels, Row: rowInner, Span: span(tk, p.iter.current.Span)}
+		return ast.STRowExtend{Labels: data.LabelMapFrom(labels), Row: rowInner, Span: span(tk, p.iter.current.Span)}
 	}
 
 	tk := p.iter.peek()
@@ -1462,11 +1462,11 @@ func (p *parser) parseTypeVar() string {
 	return *p.expect(lexer.IDENT, withError(data.TYPE_VAR)).Text
 }
 
-func (p *parser) parseRecordTypeRow() data.Tuple[string, ast.SType] {
+func (p *parser) parseRecordTypeRow() data.Entry[ast.SType] {
 	label := p.parseLabel()
 	p.expect(lexer.COLON, withError(data.RECORD_COLON))
 	ty := p.parseType(false)
-	return data.Tuple[string, ast.SType]{V1: label.Value.(string), V2: ty}
+	return data.Entry[ast.SType]{Label: label.Value.(string), Val: ty}
 }
 
 func (p *parser) parseLabel() lexer.Token {

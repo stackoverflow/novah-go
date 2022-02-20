@@ -332,7 +332,7 @@ func (f *Formatter) ShowExpr(exp SExpr) string {
 		}
 	case SRecordExtend:
 		{
-			labels := data.ShowLabels(e.Labels, f.showLabelExpr)
+			labels := e.Labels.Show(f.showLabelExpr)
 			_, isEmpty := e.Exp.(SRecordEmpty)
 			if isEmpty {
 				estr = fmt.Sprintf("{ %s }", labels)
@@ -383,10 +383,10 @@ func (f *Formatter) ShowLetDef(l SLetDef, isFor bool) string {
 		{
 			typ := ""
 			if def.Type != nil {
-				typ = fmt.Sprintf("%s : %s\n%s", def.Name, f.ShowType(def.Type), f.tab)
+				typ = fmt.Sprintf("%s : %s\n%s", def.Name.Name, f.ShowType(def.Type), f.tab)
 			}
 			pats := data.JoinToStringFunc(def.Pats, " ", func(p SPattern) string { return f.ShowPattern(p) })
-			prefix = fmt.Sprintf("%s%s %s %s", typ, def.Name.Val, pats, sep)
+			prefix = fmt.Sprintf("%s%s %s %s", typ, def.Name.Name, pats, sep)
 		}
 	case SLetPat:
 		prefix = fmt.Sprintf("%s %s", f.ShowPattern(def.Pat), sep)
@@ -434,7 +434,7 @@ func (f *Formatter) ShowPattern(pat SPattern) string {
 		return fmt.Sprintf("(%s)", f.ShowPattern(p.Pat))
 	case SRecordP:
 		{
-			labels := data.ShowLabels(p.Labels, func(l string, pat SPattern) string { return fmt.Sprintf("%s: %s", l, f.ShowPattern(pat)) })
+			labels := p.Labels.Show(func(l string, pat SPattern) string { return fmt.Sprintf("%s: %s", l, f.ShowPattern(pat)) })
 			return fmt.Sprintf("{ %s }", labels)
 		}
 	case SListP:
@@ -499,7 +499,7 @@ func (f *Formatter) ShowType(ty SType) string {
 		return "{}"
 	case STRowExtend:
 		{
-			labels := data.ShowLabels(t.Labels, f.showLabelType)
+			labels := t.Labels.Show(f.showLabelType)
 			_, isEmpty := t.Row.(STRowEmpty)
 			if isEmpty {
 				return fmt.Sprintf("{ %s }", labels)

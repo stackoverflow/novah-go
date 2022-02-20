@@ -1,0 +1,6 @@
+module records
+
+type Foo a = Foo { foo : a, bar : String }
+
+aMap : { x : String, foo : Int, "Blabla" : Foo } -> String
+aMap {x, foo} = x

@@ -1,6 +1,8 @@
 package ast
 
 import (
+	"fmt"
+
 	"github.com/stackoverflow/novah-go/data"
 	"github.com/stackoverflow/novah-go/frontend/lexer"
 	"github.com/stackoverflow/novah-go/frontend/typechecker"
@@ -138,6 +140,7 @@ type Var struct {
 	Name       string
 	ModuleName *string
 	Span       lexer.Span
+	IsOp       bool
 	Type       typechecker.Type
 }
 
@@ -277,7 +280,7 @@ type While struct {
 	Type typechecker.Type
 }
 
-type Null struct {
+type Nil struct {
 	Span lexer.Span
 	Type typechecker.Type
 }
@@ -344,6 +347,12 @@ func (e Var) GetSpan() lexer.Span {
 func (e Var) GetType() typechecker.Type {
 	return e.Type
 }
+func (e Var) Fullname() string {
+	if e.ModuleName != nil {
+		return fmt.Sprintf("%s.%s", *e.ModuleName, e.Name)
+	}
+	return e.Name
+}
 
 func (_ Ctor) expr() {}
 func (e Ctor) GetSpan() lexer.Span {
@@ -352,6 +361,12 @@ func (e Ctor) GetSpan() lexer.Span {
 func (e Ctor) GetType() typechecker.Type {
 	return e.Type
 }
+func (e Ctor) Fullname() string {
+	if e.ModuleName != nil {
+		return fmt.Sprintf("%s.%s", *e.ModuleName, e.Name)
+	}
+	return e.Name
+}
 
 func (_ ImplicitVar) expr() {}
 func (e ImplicitVar) GetSpan() lexer.Span {
@@ -359,6 +374,12 @@ func (e ImplicitVar) GetSpan() lexer.Span {
 }
 func (e ImplicitVar) GetType() typechecker.Type {
 	return e.Type
+}
+func (e ImplicitVar) Fullname() string {
+	if e.ModuleName != nil {
+		return fmt.Sprintf("%s.%s", *e.ModuleName, e.Name)
+	}
+	return e.Name
 }
 
 func (_ Lambda) expr() {}
@@ -505,11 +526,11 @@ func (e While) GetType() typechecker.Type {
 	return e.Type
 }
 
-func (_ Null) expr() {}
-func (e Null) GetSpan() lexer.Span {
+func (_ Nil) expr() {}
+func (e Nil) GetSpan() lexer.Span {
 	return e.Span
 }
-func (e Null) GetType() typechecker.Type {
+func (e Nil) GetType() typechecker.Type {
 	return e.Type
 }
 
@@ -692,6 +713,7 @@ type Binder struct {
 	Name       string
 	Span       lexer.Span
 	IsImplicit bool
+	Type       typechecker.Type
 }
 
 type LetDef struct {
@@ -699,4 +721,97 @@ type LetDef struct {
 	Expr       Expr
 	Recursive  bool
 	IsInstance bool
+}
+
+// helpers
+
+func EverywhereAccExpr[T any](this Expr, f func(Expr) []T) []T {
+	res := make([]T, 0, 5)
+	var run func(Expr)
+	run = func(exp Expr) {
+		switch e := exp.(type) {
+		case Lambda:
+			run(e.Body)
+		case App:
+			{
+				run(e.Fn)
+				run(e.Arg)
+			}
+		case If:
+			{
+				run(e.Cond)
+				run(e.Then)
+				run(e.Else)
+			}
+		case Let:
+			{
+				run(e.Def.Expr)
+				run(e.Body)
+			}
+		case Match:
+			{
+				for _, ex := range e.Exps {
+					run(ex)
+				}
+				for _, cas := range e.Cases {
+					run(cas.Exp)
+					if cas.Guard != nil {
+						run(cas.Guard)
+					}
+				}
+			}
+		case Ann:
+			run(e.Exp)
+		case Do:
+			for _, ex := range e.Exps {
+				run(ex)
+			}
+		case RecordSelect:
+			run(e.Exp)
+		case RecordRestrict:
+			run(e.Exp)
+		case RecordUpdate:
+			{
+				run(e.Exp)
+				run(e.Value)
+			}
+		case RecordExtend:
+			{
+				run(e.Exp)
+				for _, ex := range e.Labels.Values() {
+					run(ex)
+				}
+			}
+		case RecordMerge:
+			{
+				run(e.Exp1)
+				run(e.Exp2)
+			}
+		case ListLiteral:
+			for _, ex := range e.Exps {
+				run(ex)
+			}
+		case SetLiteral:
+			for _, ex := range e.Exps {
+				run(ex)
+			}
+		case Index:
+			{
+				run(e.Exp)
+				run(e.Index)
+			}
+		case While:
+			{
+				run(e.Cond)
+				for _, ex := range e.Exps {
+					run(ex)
+				}
+			}
+		case TypeCast:
+			run(e.Exp)
+		}
+		res = append(res, f(exp)...)
+	}
+	run(this)
+	return res
 }

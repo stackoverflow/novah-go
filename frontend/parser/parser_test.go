@@ -77,6 +77,11 @@ func TestTypeHints(t *testing.T) {
 	test.Equals(t, fmtt.ShowType(x.Type), "String")
 }
 
+func TestRecords(t *testing.T) {
+	parseResource("../../test_data/records.novah", t)
+	// should not panic
+}
+
 func parseResource(input string, t *testing.T) ast.SModule {
 	reader, _ := os.Open(input)
 	defer reader.Close()
