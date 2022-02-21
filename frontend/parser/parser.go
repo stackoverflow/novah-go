@@ -23,7 +23,7 @@ func NewParser(tokens *lexer.Lexer) *parser {
 	}
 }
 
-func (p *parser) ParseFullModule() (res *ast.SModule, errs []ast.CompilerProblem) {
+func (p *parser) ParseFullModule() (res ast.SModule, errs []ast.CompilerProblem) {
 	defer func() {
 		if r := recover(); r != nil {
 			var msg string
@@ -52,7 +52,7 @@ func (p *parser) ParseFullModule() (res *ast.SModule, errs []ast.CompilerProblem
 	return
 }
 
-func (p *parser) parseFullModule() *ast.SModule {
+func (p *parser) parseFullModule() ast.SModule {
 	mdef := p.parseModule()
 	p.moduleName = &mdef.name.Val
 
@@ -94,7 +94,7 @@ func (p *parser) parseFullModule() *ast.SModule {
 		}()
 	}
 
-	return &ast.SModule{
+	return ast.SModule{
 		Name:       mdef.name,
 		SourceName: p.sourceName,
 		Imports:    imports,
@@ -220,8 +220,8 @@ func (p *parser) parseDecl() ast.SDecl {
 	isInstance := false
 	offside := math.MaxInt32
 	if tk.Type == lexer.PUBLIC || tk.Type == lexer.PUBLICPLUS {
-		p.iter.next()
-		visibility = &tk.Type
+		vis := p.iter.next().Type
+		visibility = &vis
 		if tk.Offside() < offside {
 			offside = tk.Offside()
 		}

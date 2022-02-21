@@ -86,10 +86,10 @@ func parseResource(input string, t *testing.T) ast.SModule {
 	reader, _ := os.Open(input)
 	defer reader.Close()
 
-	return *parseString(reader, input, t)
+	return parseString(reader, input, t)
 }
 
-func parseString(reader io.Reader, name string, t *testing.T) *ast.SModule {
+func parseString(reader io.Reader, name string, t *testing.T) ast.SModule {
 	lexer := lexer.New(name, reader)
 	parser := NewParser(lexer)
 	mod, errs := parser.ParseFullModule()

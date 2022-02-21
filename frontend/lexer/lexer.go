@@ -644,8 +644,9 @@ func (lex *Lexer) accept(str string) *rune {
 	if !lex.HasMore() {
 		return nil
 	}
-	c := lex.next()
+	c := lex.peekNoErr()
 	if strings.ContainsRune(str, c) {
+		lex.next()
 		return &c
 	}
 	return nil
@@ -655,8 +656,9 @@ func (lex *Lexer) acceptFunc(f func(rune) bool) *rune {
 	if !lex.HasMore() {
 		return nil
 	}
-	c := lex.next()
+	c := lex.peekNoErr()
 	if f(c) {
+		lex.next()
 		return &c
 	}
 	return nil

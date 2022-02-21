@@ -14,7 +14,7 @@ import (
 
 type Desugar struct {
 	smod ast.SModule
-	tc   tc.Typechecker
+	tc   *tc.Typechecker
 
 	usedVars       data.Set[string]
 	unusedVars     map[string]lexer.Span
@@ -30,7 +30,7 @@ type Desugar struct {
 	varCount       int
 }
 
-func NewDesugar(smod ast.SModule, tc tc.Typechecker) *Desugar {
+func NewDesugar(smod ast.SModule, tc *tc.Typechecker) *Desugar {
 	aliases := data.NewSet[string]()
 	for _, imp := range smod.Imports {
 		if imp.Alias != nil {
@@ -558,7 +558,7 @@ func (d *Desugar) desugarDefBind(bind ast.SLetBind, locals data.Set[string], tva
 	vars := collectVars(e)
 	recursive := slices.Contains(vars, bind.Name.Name)
 	if len(bind.Pats) == 0 {
-		if bind.Type == nil {
+		if bind.Type != nil {
 			e = ast.Ann{Exp: e, Type: d.desugarTypeDef(bind.Type), Span: bind.Expr.GetSpan()}
 		}
 		return ast.LetDef{Binder: d.desugarBinder(bind.Name), Expr: e, Recursive: recursive, IsInstance: bind.IsInstance}, nil
@@ -914,7 +914,7 @@ func (d *Desugar) convertDoLets(exps []ast.SExpr) []ast.SExpr {
 		_, isDolet := e.(ast.SDoLet)
 		return isDolet
 	})
-	if doLetIndex >= 0 {
+	if doLetIndex == -1 {
 		return exps
 	}
 	exp := exps[0]
