@@ -26,6 +26,10 @@ func (s Set[T]) Remove(elems ...T) {
 	}
 }
 
+func (s Set[T]) Length() int {
+	return len(s.m)
+}
+
 // Returns a shallow clone of the set
 func (s Set[T]) Copy() Set[T] {
 	newm := make(map[T]bool)

@@ -19,12 +19,12 @@ type Desugar struct {
 	unusedVars     map[string]lexer.Span
 	usedTypes      data.Set[string]
 	usedImports    data.Set[string]
-	declNames      []string
+	declNames      data.Set[string]
+	declVars       data.Set[string]
 	imports        map[string]string
 	modName        string
 	synonyms       map[string]ast.STypeAliasDecl
 	errors         []ast.CompilerProblem
-	declVars       data.Set[string]
 	aliasedImports data.Set[string]
 	varCount       int
 }
@@ -46,15 +46,115 @@ func NewDesugar(smod ast.SModule, tc tc.Typechecker) *Desugar {
 		imports:        smod.ResolvedImports,
 		modName:        smod.Name.Val,
 		synonyms:       make(map[string]ast.STypeAliasDecl),
-		declVars:       data.NewSet[string](),
 		aliasedImports: aliases,
 		varCount:       0,
 	}
 }
 
 func (d *Desugar) Desugar() (ast.Module, []ast.CompilerProblem) {
-	d.declNames = nil
+	d.declNames = data.NewSet[string]()
+	for imp := range d.imports {
+		d.declNames.Add(imp)
+	}
+
+	// TODO: validate type aliases
+
 	panic("TBD")
+}
+
+func (d *Desugar) desugarDecl(decl ast.SDecl) ast.Decl {
+	switch de := decl.(type) {
+	case ast.STypeDecl:
+		{
+			d.validateDataCtorNames(de)
+			if _, imported := d.imports[de.Binder.Val]; imported {
+				d.errors = append(d.errors, d.makeError(data.DuplicatedType(de.Binder.Val), de.Span))
+				return nil
+			} else {
+				// TODO: auto derive
+				ctors := data.MapSlice(de.DataCtors, d.desugarDataCtor)
+				return ast.TypeDecl{Name: de.Binder, TyVars: de.TyVars, DataCtors: ctors, Visibility: de.Visibility, Span: de.Span, Comment: de.Comment}
+			}
+		}
+	case ast.SValDecl:
+		{
+			name := de.Binder.Val
+			if d.declNames.Contains(name) {
+				d.errors = append(d.errors, d.makeError(data.DuplicatedDecl(name), de.Span))
+				return nil
+			}
+			d.declNames.Add(name)
+			d.declVars = data.NewSet[string]()
+			d.checkShadow(name, de.Span)
+
+			d.unusedVars = make(map[string]lexer.Span)
+			vars := data.FlatMapSlice(de.Pats, func(t ast.SPattern) []CollectedVar { return d.collectVars(t, false) })
+			for _, v := range vars {
+				if !v.implicit && !v.instance {
+					d.unusedVars[v.name] = v.span
+				}
+				d.checkShadow(v.name, v.span)
+			}
+
+			var stype ast.SType
+			if de.Signature != nil {
+				stype = de.Signature.Type
+			}
+			// hold the type variables as scoped typed variables
+			typeVars := make(map[string]tc.Type)
+
+			var expType tc.Type
+			if stype != nil {
+				expType = d.desugarType(stype, false, typeVars)
+			}
+			var sig ast.Signature
+			if expType != nil {
+				sig = ast.Signature{Type: expType, Span: de.Signature.Span}
+			}
+
+			// TODO: spread type annotations on parameters
+			exp, err := d.desugarExp(de.Exp, data.NewSet[string](), typeVars)
+			if err != nil {
+				d.errors = append(d.errors, err.(ast.CompilerProblem))
+				return nil
+			}
+			expr, err2 := d.nestLambdaPats(de.Pats, exp, data.NewSet[string](), typeVars)
+			if err2 != nil {
+				d.errors = append(d.errors, err2.(ast.CompilerProblem))
+				return nil
+			}
+
+			if expType != nil {
+				expr = ast.Ann{Exp: expr, AnnType: expType, Span: expr.GetSpan()}
+			}
+
+			if len(d.unusedVars) > 0 {
+				d.addUnusedVars()
+			}
+			return ast.ValDecl{
+				Name:       de.Binder,
+				Exp:        expr,
+				Recursive:  d.declVars.Contains(name),
+				Span:       de.Span,
+				Signature:  sig,
+				Visibility: de.Visibility,
+				IsInstance: de.IsInstance,
+				IsOperator: de.IsOperator,
+				Comment:    de.Comment,
+			}
+		}
+	default:
+		return nil
+	}
+}
+
+func (d *Desugar) desugarDataCtor(ctor ast.SDataCtor) ast.DataCtor {
+	return ast.DataCtor{
+		Name:       ctor.Name,
+		Args:       data.MapSlice(ctor.Args, func(t ast.SType) tc.Type { return d.desugarType(t, true, make(map[string]tc.Type)) }),
+		Visibility: ctor.Visibility,
+		Span:       ctor.Span,
+	}
 }
 
 func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[string]tc.Type) (ast.Expr, error) {
@@ -962,9 +1062,26 @@ func collectVars(e ast.Expr) []string {
 	})
 }
 
+func (d *Desugar) validateDataCtorNames(dd ast.STypeDecl) {
+	if len(dd.DataCtors) > 1 {
+		tyName := dd.Binder.Val
+		for _, ct := range dd.DataCtors {
+			if ct.Name.Val == tyName {
+				d.errors = append(d.errors, d.makeError(data.WrongConstructorName(tyName), dd.Span))
+			}
+		}
+	}
+}
+
 func (d *Desugar) newVar() string {
 	d.varCount++
 	return fmt.Sprintf("__var%d", d.varCount)
+}
+
+func (d *Desugar) addUnusedVars() {
+	for name, span := range d.unusedVars {
+		d.errors = append(d.errors, d.makeWarn(data.UnusedVariable(name), span))
+	}
 }
 
 func (d *Desugar) checkAlias(alias string, span lexer.Span) {
@@ -983,4 +1100,8 @@ func (d *Desugar) checkShadow(name string, span lexer.Span) {
 
 func (d *Desugar) makeError(msg string, span lexer.Span) ast.CompilerProblem {
 	return ast.CompilerProblem{Msg: msg, Span: span, Filename: d.smod.SourceName, Module: &d.modName, Severity: ast.ERROR}
+}
+
+func (d *Desugar) makeWarn(msg string, span lexer.Span) ast.CompilerProblem {
+	return ast.CompilerProblem{Msg: msg, Span: span, Filename: d.smod.SourceName, Module: &d.modName, Severity: ast.WARN}
 }

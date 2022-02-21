@@ -183,6 +183,22 @@ func NoAliasFound(alias string) string {
 	return fmt.Sprintf("Could not find import alias %s.", alias)
 }
 
+func WrongConstructorName(typeName string) string {
+	return fmt.Sprintf("Multi constructor type cannot have the same name as their type: %s.", typeName)
+}
+
+func DuplicatedDecl(name string) string {
+	return fmt.Sprintf("Declaration %s is already defined or imported.", name)
+}
+
+func DuplicatedType(name string) string {
+	return fmt.Sprintf("Type %s is already defined or imported.", name)
+}
+
+func UnusedVariable(varr string) string {
+	return fmt.Sprintf("Variable %s is unused in declaration.", varr)
+}
+
 func LiteralExpected(name string) string {
 	return fmt.Sprintf("Expected %s literal.", name)
 }
