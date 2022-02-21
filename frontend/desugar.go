@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/huandu/go-clone"
@@ -51,15 +52,40 @@ func NewDesugar(smod ast.SModule, tc tc.Typechecker) *Desugar {
 	}
 }
 
-func (d *Desugar) Desugar() (ast.Module, []ast.CompilerProblem) {
+// If error != nil a fatal error ocurred.
+// Call Errors to get all errors.
+func (d *Desugar) Desugar() (ast.Module, error) {
 	d.declNames = data.NewSet[string]()
 	for imp := range d.imports {
 		d.declNames.Add(imp)
 	}
 
 	// TODO: validate type aliases
+	desugaredDecls := make([]ast.Decl, 0, len(d.smod.Decls))
+	for _, decl := range d.smod.Decls {
+		res := d.desugarDecl(decl)
+		if res != nil {
+			desugaredDecls = append(desugaredDecls, res)
+		}
+	}
+	decls, err := d.validateTopLevelValues(desugaredDecls)
+	if err != nil {
+		return ast.Module{}, err
+	}
 
-	panic("TBD")
+	// TODO: report unused imports
+	return ast.Module{
+		Name:          d.smod.Name,
+		SourceName:    d.smod.SourceName,
+		Decls:         decls,
+		Imports:       d.smod.Imports,
+		UnusedImports: make(map[string]lexer.Span),
+		Comment:       d.smod.Comment,
+	}, nil
+}
+
+func (d *Desugar) Errors() []ast.CompilerProblem {
+	return d.errors
 }
 
 func (d *Desugar) desugarDecl(decl ast.SDecl) ast.Decl {
@@ -107,9 +133,9 @@ func (d *Desugar) desugarDecl(decl ast.SDecl) ast.Decl {
 			if stype != nil {
 				expType = d.desugarType(stype, false, typeVars)
 			}
-			var sig ast.Signature
+			var sig *ast.Signature
 			if expType != nil {
-				sig = ast.Signature{Type: expType, Span: de.Signature.Span}
+				sig = &ast.Signature{Type: expType, Span: de.Signature.Span}
 			}
 
 			// TODO: spread type annotations on parameters
@@ -981,6 +1007,112 @@ func (d *Desugar) resolveAliases(ty ast.SType) ast.SType {
 	}
 }
 
+// Make sure variables are not co-dependent (form cycles)
+// and order them by dependency
+func (d *Desugar) validateTopLevelValues(desugared []ast.Decl) ([]ast.Decl, error) {
+	reportCycle := func(cycle []data.DagNode[string, ast.ValDecl]) {
+		first := cycle[0]
+		vars := data.MapSlice(cycle, func(t data.DagNode[string, ast.ValDecl]) string { return t.Val })
+		if len(cycle) == 1 {
+			d.errors = append(d.errors, d.makeError(data.CycleInValues(vars), first.Data.Span))
+		} else if data.AnySlice(cycle, func(t data.DagNode[string, ast.ValDecl]) bool { return isVariable(t.Data.Exp) }) {
+			for _, node := range cycle {
+				d.errors = append(d.errors, d.makeError(data.CycleInValues(vars), node.Data.Span))
+			}
+		} else {
+			for _, node := range cycle {
+				d.errors = append(d.errors, d.makeError(data.CycleInFunctions(vars), node.Data.Span))
+			}
+		}
+	}
+
+	collectDependencies := func(exp ast.Expr) data.Set[string] {
+		deps := data.NewSet[string]()
+		ast.EverywhereExprUnit(exp, func(expr ast.Expr) {
+			switch e := expr.(type) {
+			case ast.Var:
+				deps.Add(e.Fullname())
+			case ast.ImplicitVar:
+				deps.Add(e.Fullname())
+			case ast.Ctor:
+				deps.Add(e.Fullname())
+			}
+		})
+		return deps
+	}
+
+	var decls []ast.ValDecl
+	var types []ast.TypeDecl
+	for _, decl := range desugared {
+		switch d := decl.(type) {
+		case ast.ValDecl:
+			decls = append(decls, d)
+		case ast.TypeDecl:
+			types = append(types, d)
+		}
+	}
+
+	deps := make(map[string]data.Set[string])
+	nodes := make(map[string]*data.DagNode[string, ast.ValDecl])
+	dag := data.NewDag[string, ast.ValDecl](len(decls))
+	for _, d := range decls {
+		deps[d.Name.Val] = collectDependencies(d.Exp)
+		node := data.NewDagNode(d.Name.Val, d)
+		nodes[d.Name.Val] = node
+		dag.AddNodes(node)
+	}
+
+	for _, node := range nodes {
+		set, has := deps[node.Val]
+		if !has {
+			continue
+		}
+		for name := range set.Inner() {
+			dep, has := nodes[name]
+			if !has {
+				continue
+			}
+			d1, d2 := dep.Data, node.Data
+			if isVariable(d1.Exp) || isVariable(d2.Exp) {
+				// variables cannot have cycles
+				dep.Link(node)
+			} else if d1.Name.Val == d2.Name.Val {
+				// functions can be recursive
+			} else if (d1.Signature == nil || d1.Signature.Type == nil) || (d2.Signature == nil || d2.Signature.Type == nil) {
+				// functions can only be mutually recursive if they have type annotations
+				dep.Link(node)
+			}
+		}
+	}
+
+	cycle, hasCycle := dag.FindCycle()
+	if hasCycle {
+		reportCycle(cycle)
+		return nil, errors.New("module has cycles")
+	}
+
+	ordered := dag.Toposort().ToSlice()
+	res := make([]ast.Decl, 0, len(types)+len(ordered))
+	for _, typ := range types {
+		res = append(res, typ)
+	}
+	for _, decl := range ordered {
+		res = append(res, decl.Data)
+	}
+	return res, nil
+}
+
+func isVariable(exp ast.Expr) bool {
+	switch e := exp.(type) {
+	case ast.Lambda:
+		return false
+	case ast.Ann:
+		return isVariable(e.Exp)
+	default:
+		return true
+	}
+}
+
 type CollectedVar struct {
 	name     string
 	span     lexer.Span
@@ -1053,7 +1185,7 @@ func (d *Desugar) collectVars(pat ast.SPattern, implicit bool) []CollectedVar {
 }
 
 func collectVars(e ast.Expr) []string {
-	return ast.EverywhereAccExpr(e, func(e ast.Expr) []string {
+	return ast.EverywhereExprAcc(e, func(e ast.Expr) []string {
 		if v, isVar := e.(ast.Var); isVar {
 			return []string{v.Fullname()}
 		} else {

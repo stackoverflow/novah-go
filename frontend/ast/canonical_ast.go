@@ -48,7 +48,7 @@ type ValDecl struct {
 	Exp        Expr
 	Recursive  bool
 	Span       lexer.Span
-	Signature  Signature
+	Signature  *Signature
 	Visibility Visibility
 	IsInstance bool
 	IsOperator bool
@@ -725,31 +725,45 @@ type LetDef struct {
 
 // helpers
 
-func EverywhereAccExpr[T any](this Expr, f func(Expr) []T) []T {
+func EverywhereExprAcc[T any](this Expr, f func(Expr) []T) []T {
 	res := make([]T, 0, 5)
+	EverywhereExprUnit(this, func(e Expr) {
+		res = append(res, f(e)...)
+	})
+	return res
+}
+
+func EverywhereExprUnit(this Expr, f func(Expr)) {
 	var run func(Expr)
 	run = func(exp Expr) {
 		switch e := exp.(type) {
 		case Lambda:
-			run(e.Body)
+			{
+				f(e)
+				run(e.Body)
+			}
 		case App:
 			{
+				f(e)
 				run(e.Fn)
 				run(e.Arg)
 			}
 		case If:
 			{
+				f(e)
 				run(e.Cond)
 				run(e.Then)
 				run(e.Else)
 			}
 		case Let:
 			{
+				f(e)
 				run(e.Def.Expr)
 				run(e.Body)
 			}
 		case Match:
 			{
+				f(e)
 				for _, ex := range e.Exps {
 					run(ex)
 				}
@@ -761,57 +775,83 @@ func EverywhereAccExpr[T any](this Expr, f func(Expr) []T) []T {
 				}
 			}
 		case Ann:
-			run(e.Exp)
+			{
+				run(e.Exp)
+				f(e)
+			}
 		case Do:
-			for _, ex := range e.Exps {
-				run(ex)
-			}
-		case RecordSelect:
-			run(e.Exp)
-		case RecordRestrict:
-			run(e.Exp)
-		case RecordUpdate:
 			{
-				run(e.Exp)
-				run(e.Value)
-			}
-		case RecordExtend:
-			{
-				run(e.Exp)
-				for _, ex := range e.Labels.Values() {
+				f(e)
+				for _, ex := range e.Exps {
 					run(ex)
 				}
 			}
+		case RecordSelect:
+			{
+				f(e)
+				run(e.Exp)
+			}
+		case RecordRestrict:
+			{
+				f(e)
+				run(e.Exp)
+			}
+		case RecordUpdate:
+			{
+				f(e)
+				run(e.Value)
+				run(e.Exp)
+			}
+		case RecordExtend:
+			{
+				f(e)
+				for _, ex := range e.Labels.Values() {
+					run(ex)
+				}
+				run(e.Exp)
+			}
 		case RecordMerge:
 			{
+				f(e)
 				run(e.Exp1)
 				run(e.Exp2)
 			}
 		case ListLiteral:
-			for _, ex := range e.Exps {
-				run(ex)
+			{
+				f(e)
+				for _, ex := range e.Exps {
+					run(ex)
+				}
 			}
 		case SetLiteral:
-			for _, ex := range e.Exps {
-				run(ex)
+			{
+				f(e)
+				for _, ex := range e.Exps {
+					run(ex)
+				}
 			}
 		case Index:
 			{
+				f(e)
 				run(e.Exp)
 				run(e.Index)
 			}
 		case While:
 			{
+				f(e)
 				run(e.Cond)
 				for _, ex := range e.Exps {
 					run(ex)
 				}
 			}
 		case TypeCast:
-			run(e.Exp)
+			{
+				run(e.Exp)
+				f(e)
+			}
+		default:
+			f(e)
 		}
-		res = append(res, f(exp)...)
 	}
 	run(this)
-	return res
 }

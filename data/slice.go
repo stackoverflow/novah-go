@@ -132,3 +132,26 @@ func ZipSlices[T, R any](s1 []T, s2 []R) []Tuple[T, R] {
 	}
 	return res
 }
+
+// Returns a new slice with elements reversed
+func ReverseSlice[T any](s []T) []T {
+	a := make([]T, len(s))
+	copy(a, s)
+
+	for i := len(a)/2 - 1; i >= 0; i-- {
+		opp := len(a) - 1 - i
+		a[i], a[opp] = a[opp], a[i]
+	}
+
+	return a
+}
+
+// Returns true if the function is true for any element in the slice
+func AnySlice[T any](s []T, pred func(T) bool) bool {
+	for _, e := range s {
+		if pred(e) {
+			return true
+		}
+	}
+	return false
+}

@@ -30,6 +30,22 @@ func (s Set[T]) Length() int {
 	return len(s.m)
 }
 
+func (s Set[T]) Inner() map[T]bool {
+	return s.m
+}
+
+func (s Set[T]) Equals(other Set[T]) bool {
+	if len(s.m) != len(other.m) {
+		return false
+	}
+	for k := range s.m {
+		if !other.Contains(k) {
+			return false
+		}
+	}
+	return true
+}
+
 // Returns a shallow clone of the set
 func (s Set[T]) Copy() Set[T] {
 	newm := make(map[T]bool)

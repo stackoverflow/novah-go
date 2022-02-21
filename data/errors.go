@@ -199,6 +199,14 @@ func UnusedVariable(varr string) string {
 	return fmt.Sprintf("Variable %s is unused in declaration.", varr)
 }
 
+func CycleInValues(nodes []string) string {
+	return fmt.Sprintf("Found cycle between values %s.", JoinToStringStr(nodes, ", "))
+}
+
+func CycleInFunctions(nodes []string) string {
+	return fmt.Sprintf("Mutually recursive functions %s need type annotations.", JoinToStringStr(nodes, ", "))
+}
+
 func LiteralExpected(name string) string {
 	return fmt.Sprintf("Expected %s literal.", name)
 }
