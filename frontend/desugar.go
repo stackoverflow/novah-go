@@ -17,7 +17,7 @@ type Desugar struct {
 	tc   *tc.Typechecker
 
 	usedVars       data.Set[string]
-	unusedVars     map[string]lexer.Span
+	unusedVars     map[string]data.Span
 	usedTypes      data.Set[string]
 	usedImports    data.Set[string]
 	declNames      data.Set[string]
@@ -25,7 +25,7 @@ type Desugar struct {
 	imports        map[string]string
 	modName        string
 	synonyms       map[string]ast.STypeAliasDecl
-	errors         []ast.CompilerProblem
+	errors         []data.CompilerProblem
 	aliasedImports data.Set[string]
 	varCount       int
 }
@@ -41,7 +41,7 @@ func NewDesugar(smod ast.SModule, tc *tc.Typechecker) *Desugar {
 		smod:           smod,
 		tc:             tc,
 		usedVars:       data.NewSet[string](),
-		unusedVars:     make(map[string]lexer.Span),
+		unusedVars:     make(map[string]data.Span),
 		usedTypes:      data.NewSet[string](),
 		usedImports:    data.NewSet[string](),
 		imports:        smod.ResolvedImports,
@@ -79,12 +79,12 @@ func (d *Desugar) Desugar() (ast.Module, error) {
 		SourceName:    d.smod.SourceName,
 		Decls:         decls,
 		Imports:       d.smod.Imports,
-		UnusedImports: make(map[string]lexer.Span),
+		UnusedImports: make(map[string]data.Span),
 		Comment:       d.smod.Comment,
 	}, nil
 }
 
-func (d *Desugar) Errors() []ast.CompilerProblem {
+func (d *Desugar) Errors() []data.CompilerProblem {
 	return d.errors
 }
 
@@ -113,7 +113,7 @@ func (d *Desugar) desugarDecl(decl ast.SDecl) ast.Decl {
 			d.declVars = data.NewSet[string]()
 			d.checkShadow(name, de.Span)
 
-			d.unusedVars = make(map[string]lexer.Span)
+			d.unusedVars = make(map[string]data.Span)
 			vars := data.FlatMapSlice(de.Pats, func(t ast.SPattern) []CollectedVar { return d.collectVars(t, false) })
 			for _, v := range vars {
 				if !v.implicit && !v.instance {
@@ -127,9 +127,9 @@ func (d *Desugar) desugarDecl(decl ast.SDecl) ast.Decl {
 				stype = de.Signature.Type
 			}
 			// hold the type variables as scoped typed variables
-			typeVars := make(map[string]tc.Type)
+			typeVars := make(map[string]ast.Type)
 
-			var expType tc.Type
+			var expType ast.Type
 			if stype != nil {
 				expType = d.desugarType(stype, false, typeVars)
 			}
@@ -141,17 +141,17 @@ func (d *Desugar) desugarDecl(decl ast.SDecl) ast.Decl {
 			// TODO: spread type annotations on parameters
 			exp, err := d.desugarExp(de.Exp, data.NewSet[string](), typeVars)
 			if err != nil {
-				d.errors = append(d.errors, err.(ast.CompilerProblem))
+				d.errors = append(d.errors, err.(data.CompilerProblem))
 				return nil
 			}
 			expr, err2 := d.nestLambdaPats(de.Pats, exp, data.NewSet[string](), typeVars)
 			if err2 != nil {
-				d.errors = append(d.errors, err2.(ast.CompilerProblem))
+				d.errors = append(d.errors, err2.(data.CompilerProblem))
 				return nil
 			}
 
 			if expType != nil {
-				expr = ast.Ann{Exp: expr, AnnType: expType, Span: expr.GetSpan()}
+				expr = ast.Ann{Exp: expr, AnnType: expType, Span: expr.GetSpan(), Type: &ast.Typed{}}
 			}
 
 			if len(d.unusedVars) > 0 {
@@ -177,26 +177,26 @@ func (d *Desugar) desugarDecl(decl ast.SDecl) ast.Decl {
 func (d *Desugar) desugarDataCtor(ctor ast.SDataCtor) ast.DataCtor {
 	return ast.DataCtor{
 		Name:       ctor.Name,
-		Args:       data.MapSlice(ctor.Args, func(t ast.SType) tc.Type { return d.desugarType(t, true, make(map[string]tc.Type)) }),
+		Args:       data.MapSlice(ctor.Args, func(t ast.SType) ast.Type { return d.desugarType(t, true, make(map[string]ast.Type)) }),
 		Visibility: ctor.Visibility,
 		Span:       ctor.Span,
 	}
 }
 
-func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[string]tc.Type) (ast.Expr, error) {
+func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[string]ast.Type) (ast.Expr, error) {
 	switch e := sexp.(type) {
 	case ast.SInt:
-		return ast.Int{V: e.V, Span: e.Span}, nil
+		return ast.Int{V: e.V, Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SFloat:
-		return ast.Float{V: e.V, Span: e.Span}, nil
+		return ast.Float{V: e.V, Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SComplex:
-		return ast.Complex{V: e.V, Span: e.Span}, nil
+		return ast.Complex{V: e.V, Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SBool:
-		return ast.Bool{V: e.V, Span: e.Span}, nil
+		return ast.Bool{V: e.V, Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SChar:
-		return ast.Char{V: e.V, Span: e.Span}, nil
+		return ast.Char{V: e.V, Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SString:
-		return ast.String{V: e.V, Span: e.Span}, nil
+		return ast.String{V: e.V, Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SPatternLiteral:
 		panic("pattern literals not supported yet")
 	case ast.SVar:
@@ -207,7 +207,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 				d.usedVars.Add(e.Name)
 			}
 			if e.Alias == nil && locals.Contains(e.Name) {
-				return ast.Var{Name: e.Name, Span: e.Span}, nil
+				return ast.Var{Name: e.Name, Span: e.Span, Type: &ast.Typed{}}, nil
 			} else {
 				if e.Alias != nil {
 					d.checkAlias(*e.Alias, e.Span)
@@ -216,7 +216,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 				if has {
 					d.usedImports.Add(importedModule)
 				}
-				return ast.Var{Name: e.Name, Span: e.Span, ModuleName: &importedModule}, nil
+				return ast.Var{Name: e.Name, Span: e.Span, ModuleName: &importedModule, Type: &ast.Typed{}}, nil
 			}
 		}
 	case ast.SImplicitVar:
@@ -236,7 +236,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if locals.Contains(e.Name) {
 				mname = nil
 			}
-			return ast.ImplicitVar{Name: e.Name, Span: e.Span, ModuleName: mname}, nil
+			return ast.ImplicitVar{Name: e.Name, Span: e.Span, ModuleName: mname, Type: &ast.Typed{}}, nil
 		}
 	case ast.SOperator:
 		{
@@ -260,9 +260,9 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 				d.usedImports.Add(importedModule)
 			}
 			if lexer.IsUpper(exp.Name) {
-				return ast.Ctor{Name: exp.Name, Span: exp.Span, ModuleName: &importedModule}, nil
+				return ast.Ctor{Name: exp.Name, Span: exp.Span, ModuleName: &importedModule, Type: &ast.Typed{}}, nil
 			} else {
-				return ast.Var{Name: exp.Name, Span: exp.Span, ModuleName: &importedModule, IsOp: true}, nil
+				return ast.Var{Name: exp.Name, Span: exp.Span, ModuleName: &importedModule, IsOp: true, Type: &ast.Typed{}}, nil
 			}
 		}
 	case ast.SConstructor:
@@ -277,7 +277,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if has {
 				d.usedImports.Add(importedModule)
 			}
-			return ast.Ctor{Name: e.Name, Span: e.Span, ModuleName: &importedModule}, nil
+			return ast.Ctor{Name: e.Name, Span: e.Span, ModuleName: &importedModule, Type: &ast.Typed{}}, nil
 		}
 	case ast.SLambda:
 		{
@@ -308,7 +308,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if err2 != nil {
 				return nil, err2
 			}
-			return ast.App{Fn: fn, Arg: arg, Span: e.Span}, nil
+			return ast.App{Fn: fn, Arg: arg, Span: e.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SParens:
 		return d.desugarExp(e.Exp, locals, tvars)
@@ -331,7 +331,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if err3 != nil {
 				return nil, err3
 			}
-			return ast.If{Cond: cond, Then: then, Else: _else, Span: e.Span}, nil
+			return ast.If{Cond: cond, Then: then, Else: _else, Span: e.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SLet:
 		{
@@ -363,7 +363,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if err2 != nil {
 				return nil, err2
 			}
-			return ast.Match{Exps: exps, Cases: cases, Span: e.Span}, nil
+			return ast.Match{Exps: exps, Cases: cases, Span: e.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SAnn:
 		{
@@ -371,9 +371,9 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if err != nil {
 				return nil, err
 			}
-			vars := clone.Clone(tvars).(map[string]tc.Type)
+			vars := clone.Clone(tvars).(map[string]ast.Type)
 			typ := d.desugarType(e.Type, false, vars)
-			return ast.Ann{Exp: exp, Type: typ, Span: e.Span}, nil
+			return ast.Ann{Exp: exp, AnnType: typ, Span: e.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SDo:
 		{
@@ -385,14 +385,14 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if err != nil {
 				return nil, err
 			}
-			return ast.Do{Exps: exps, Span: e.Span}, nil
+			return ast.Do{Exps: exps, Span: e.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SDoLet:
 		return nil, d.makeError(data.LET_IN, e.Span)
 	case ast.SUnit:
-		return ast.Unit{Span: e.Span}, nil
+		return ast.Unit{Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SRecordEmpty:
-		return ast.RecordEmpty{Span: e.Span}, nil
+		return ast.RecordEmpty{Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SRecordSelect:
 		{
 			// TODO: nest lambdas
@@ -413,7 +413,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if err2 != nil {
 				return nil, err2
 			}
-			return ast.RecordExtend{Labels: labels, Exp: exp, Span: e.Span}, nil
+			return ast.RecordExtend{Labels: labels, Exp: exp, Span: e.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SRecordRestrict:
 		{
@@ -448,7 +448,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if err2 != nil {
 				return nil, err2
 			}
-			return ast.RecordMerge{Exp1: exp1, Exp2: exp2, Span: e.Span}, nil
+			return ast.RecordMerge{Exp1: exp1, Exp2: exp2, Span: e.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SListLiteral:
 		{
@@ -457,7 +457,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if err != nil {
 				return nil, err
 			}
-			return ast.ListLiteral{Exps: exps, Span: e.Span}, nil
+			return ast.ListLiteral{Exps: exps, Span: e.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SSetLiteral:
 		{
@@ -466,7 +466,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if err != nil {
 				return nil, err
 			}
-			return ast.SetLiteral{Exps: exps, Span: e.Span}, nil
+			return ast.SetLiteral{Exps: exps, Span: e.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SIndex:
 		{
@@ -479,7 +479,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if err2 != nil {
 				return nil, err2
 			}
-			return ast.Index{Exp: exp, Index: index, Span: e.Span}, nil
+			return ast.Index{Exp: exp, Index: index, Span: e.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SBinApp:
 		if op, isOp := e.Op.(ast.SOperator); isOp && op.Name == "<-" {
@@ -499,8 +499,8 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if err3 != nil {
 				return nil, err3
 			}
-			inner := ast.App{Fn: op, Arg: left, Span: lexer.NewSpan(left.GetSpan(), op.GetSpan())}
-			return ast.App{Fn: inner, Arg: right, Span: lexer.NewSpan(inner.Span, right.GetSpan())}, nil
+			inner := ast.App{Fn: op, Arg: left, Span: data.NewSpan(left.GetSpan(), op.GetSpan()), Type: &ast.Typed{}}
+			return ast.App{Fn: inner, Arg: right, Span: data.NewSpan(inner.Span, right.GetSpan()), Type: &ast.Typed{}}, nil
 		}
 	case ast.SUnderscore:
 		return nil, d.makeError(data.ANONYMOUS_FUNCTION_ARGUMENT, e.Span)
@@ -518,22 +518,22 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if err2 != nil {
 				return nil, err2
 			}
-			return ast.While{Cond: cond, Exps: exps, Span: e.Span}, nil
+			return ast.While{Cond: cond, Exps: exps, Span: e.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SComputation:
 		// TODO: computation
 		panic("Computation not supported yet")
 	case ast.SNil:
-		return ast.Nil{Span: e.Span}, nil
+		return ast.Nil{Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.STypeCast:
 		{
 			exp, err := d.desugarExp(e.Exp, locals, tvars)
 			if err != nil {
 				return nil, err
 			}
-			vars := clone.Clone(tvars).(map[string]tc.Type)
+			vars := clone.Clone(tvars).(map[string]ast.Type)
 			typ := d.desugarType(e.Cast, false, vars)
-			return ast.TypeCast{Exp: exp, Cast: typ, Span: e.Span}, nil
+			return ast.TypeCast{Exp: exp, Cast: typ, Span: e.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SReturn:
 		return nil, d.makeError(data.RETURN_EXPR, e.Span)
@@ -550,7 +550,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 	}
 }
 
-func (d *Desugar) desugarDefBind(bind ast.SLetBind, locals data.Set[string], tvars map[string]tc.Type) (ast.LetDef, error) {
+func (d *Desugar) desugarDefBind(bind ast.SLetBind, locals data.Set[string], tvars map[string]ast.Type) (ast.LetDef, error) {
 	e, err := d.desugarExp(bind.Expr, locals, tvars)
 	if err != nil {
 		return ast.LetDef{}, err
@@ -559,7 +559,7 @@ func (d *Desugar) desugarDefBind(bind ast.SLetBind, locals data.Set[string], tva
 	recursive := slices.Contains(vars, bind.Name.Name)
 	if len(bind.Pats) == 0 {
 		if bind.Type != nil {
-			e = ast.Ann{Exp: e, Type: d.desugarTypeDef(bind.Type), Span: bind.Expr.GetSpan()}
+			e = ast.Ann{Exp: e, AnnType: d.desugarTypeDef(bind.Type), Span: bind.Expr.GetSpan(), Type: &ast.Typed{}}
 		}
 		return ast.LetDef{Binder: d.desugarBinder(bind.Name), Expr: e, Recursive: recursive, IsInstance: bind.IsInstance}, nil
 	} else {
@@ -568,7 +568,7 @@ func (d *Desugar) desugarDefBind(bind ast.SLetBind, locals data.Set[string], tva
 			return ast.LetDef{}, err2
 		}
 		if bind.Type != nil {
-			binder = ast.Ann{Exp: binder, Type: d.desugarTypeDef(bind.Type), Span: bind.Expr.GetSpan()}
+			binder = ast.Ann{Exp: binder, AnnType: d.desugarTypeDef(bind.Type), Span: bind.Expr.GetSpan(), Type: &ast.Typed{}}
 		}
 		return ast.LetDef{Binder: d.desugarBinder(bind.Name), Expr: binder, Recursive: recursive, IsInstance: bind.IsInstance}, nil
 	}
@@ -578,7 +578,7 @@ func (d *Desugar) desugarBinder(b ast.SBinder) ast.Binder {
 	return ast.Binder{Name: b.Name, Span: b.Span, IsImplicit: b.IsImplicit}
 }
 
-func (d *Desugar) desugarCase(cas ast.SCase, locals data.Set[string], tvars map[string]tc.Type) (ast.Case, error) {
+func (d *Desugar) desugarCase(cas ast.SCase, locals data.Set[string], tvars map[string]ast.Type) (ast.Case, error) {
 	vars := data.FlatMapSlice(cas.Pats, func(t ast.SPattern) []CollectedVar { return d.collectVars(t, false) })
 	for _, v := range vars {
 		if !v.implicit && !v.instance {
@@ -602,20 +602,20 @@ func (d *Desugar) desugarCase(cas ast.SCase, locals data.Set[string], tvars map[
 	return ast.Case{Patterns: pats, Exp: exp, Guard: guard}, nil
 }
 
-func (d *Desugar) desugarPattern(sp ast.SPattern, locals data.Set[string], tvars map[string]tc.Type) (ast.Pattern, error) {
+func (d *Desugar) desugarPattern(sp ast.SPattern, locals data.Set[string], tvars map[string]ast.Type) (ast.Pattern, error) {
 	switch pat := sp.(type) {
 	case ast.SWildcard:
-		return ast.Wildcard{Span: pat.Span}, nil
+		return ast.Wildcard{Span: pat.Span, Type: &ast.Typed{}}, nil
 	case ast.SLiteralP:
 		{
 			lit, err := d.desugarExp(pat.Lit, locals, tvars)
 			if err != nil {
 				return nil, err
 			}
-			return ast.LiteralP{Lit: lit, Span: pat.Span}, nil
+			return ast.LiteralP{Lit: lit, Span: pat.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SVarP:
-		return ast.VarP{V: ast.Var{Name: pat.V.Name, Span: pat.V.Span}}, nil
+		return ast.VarP{V: ast.Var{Name: pat.V.Name, Span: pat.V.Span, Type: &ast.Typed{}}, Type: &ast.Typed{}}, nil
 	case ast.SCtorP:
 		{
 			fields, err := data.MapSliceError(pat.Fields, func(t ast.SPattern) (ast.Pattern, error) { return d.desugarPattern(t, locals, tvars) })
@@ -626,7 +626,7 @@ func (d *Desugar) desugarPattern(sp ast.SPattern, locals data.Set[string], tvars
 			if err2 != nil {
 				return nil, err2
 			}
-			return ast.CtorP{Ctor: ctor.(ast.Ctor), Fields: fields, Span: pat.Span}, nil
+			return ast.CtorP{Ctor: ctor.(ast.Ctor), Fields: fields, Span: pat.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SParensP:
 		return d.desugarPattern(pat.Pat, locals, tvars)
@@ -636,7 +636,7 @@ func (d *Desugar) desugarPattern(sp ast.SPattern, locals data.Set[string], tvars
 			if err != nil {
 				return nil, err
 			}
-			return ast.RecordP{Labels: labels, Span: pat.Span}, nil
+			return ast.RecordP{Labels: labels, Span: pat.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SListP:
 		{
@@ -652,7 +652,7 @@ func (d *Desugar) desugarPattern(sp ast.SPattern, locals data.Set[string], tvars
 			if err2 != nil {
 				return nil, err2
 			}
-			return ast.ListP{Elems: elems, Tail: tail, Span: pat.Span}, nil
+			return ast.ListP{Elems: elems, Tail: tail, Span: pat.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SNamed:
 		{
@@ -660,12 +660,12 @@ func (d *Desugar) desugarPattern(sp ast.SPattern, locals data.Set[string], tvars
 			if err != nil {
 				return nil, err
 			}
-			return ast.NamedP{Pat: patt, Name: pat.Name, Span: pat.Span}, nil
+			return ast.NamedP{Pat: patt, Name: pat.Name, Span: pat.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SUnitP:
-		return ast.UnitP{Span: pat.Span}, nil
+		return ast.UnitP{Span: pat.Span, Type: &ast.Typed{}}, nil
 	case ast.STypeTest:
-		return ast.TypeTest{Test: d.desugarTypeDef(pat.Type), Alias: pat.Alias, Span: pat.Span}, nil
+		return ast.TypeTest{Test: d.desugarTypeDef(pat.Type), Alias: pat.Alias, Span: pat.Span, Type: &ast.Typed{}}, nil
 	case ast.STupleP:
 		{
 			p1, err1 := d.desugarPattern(pat.P1, locals, tvars)
@@ -677,11 +677,11 @@ func (d *Desugar) desugarPattern(sp ast.SPattern, locals data.Set[string], tvars
 				return nil, err2
 			}
 			mname := "novah.core"
-			ctor := ast.Ctor{Name: "Tuple", Span: pat.Span, ModuleName: &mname}
-			return ast.CtorP{Ctor: ctor, Fields: []ast.Pattern{p1, p2}, Span: pat.Span}, nil
+			ctor := ast.Ctor{Name: "Tuple", Span: pat.Span, ModuleName: &mname, Type: &ast.Typed{}}
+			return ast.CtorP{Ctor: ctor, Fields: []ast.Pattern{p1, p2}, Span: pat.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SRegexP:
-		return ast.RegexP{Regex: pat.Regex.Regex, Span: pat.Regex.Span}, nil
+		return ast.RegexP{Regex: pat.Regex.Regex, Span: pat.Regex.Span, Type: &ast.Typed{}}, nil
 	case ast.SImplicitP:
 		return nil, d.makeError(data.IMPLICIT_PATTERN, pat.Span)
 	case ast.STypeAnnotationP:
@@ -691,23 +691,23 @@ func (d *Desugar) desugarPattern(sp ast.SPattern, locals data.Set[string], tvars
 	}
 }
 
-func (d *Desugar) desugarTypeDef(ty ast.SType) tc.Type {
-	return d.desugarType(ty, false, make(map[string]tc.Type))
+func (d *Desugar) desugarTypeDef(ty ast.SType) ast.Type {
+	return d.desugarType(ty, false, make(map[string]ast.Type))
 }
 
-func (d *Desugar) desugarType(ty ast.SType, isCtor bool, vars map[string]tc.Type) tc.Type {
+func (d *Desugar) desugarType(ty ast.SType, isCtor bool, vars map[string]ast.Type) ast.Type {
 	typ := d.resolveAliases(ty)
 	return d.goDesugarType(typ, isCtor, vars, 0)
 }
 
-func (d *Desugar) goDesugarType(ty ast.SType, isCtor bool, vars map[string]tc.Type, kindArity int) tc.Type {
+func (d *Desugar) goDesugarType(ty ast.SType, isCtor bool, vars map[string]ast.Type, kindArity int) ast.Type {
 	switch t := ty.(type) {
 	case ast.STConst:
 		{
 			d.usedTypes.Add(t.Name)
-			kind := tc.STAR
+			kind := ast.Kind{Type: ast.STAR, Arity: kindArity}
 			if kindArity > 0 {
-				kind = tc.CTOR
+				kind = ast.Kind{Type: ast.CTOR, Arity: kindArity}
 			}
 			if lexer.IsLower(t.Name) {
 				if !isCtor {
@@ -720,7 +720,7 @@ func (d *Desugar) goDesugarType(ty ast.SType, isCtor bool, vars map[string]tc.Ty
 						return v
 					}
 				} else {
-					return tc.TConst{Name: t.Name, Span: ty.GetSpan()}
+					return ast.TConst{Name: t.Name, Span: ty.GetSpan()}
 				}
 			} else {
 				modName, has := d.imports[t.Fullname()]
@@ -731,36 +731,36 @@ func (d *Desugar) goDesugarType(ty ast.SType, isCtor bool, vars map[string]tc.Ty
 				}
 				// TODO: check foreigns here
 				varName := fmt.Sprintf("%s.%s", modName, t.Name)
-				return tc.TConst{Name: varName, Kind: kind, Span: t.Span}
+				return ast.TConst{Name: varName, Kind: kind, Span: t.Span}
 			}
 		}
 	case ast.STFun:
-		return tc.TArrow{Args: []tc.Type{d.goDesugarType(t.Arg, isCtor, vars, 0)}, Ret: d.goDesugarType(t.Ret, isCtor, vars, 0)}
+		return ast.TArrow{Args: []ast.Type{d.goDesugarType(t.Arg, isCtor, vars, 0)}, Ret: d.goDesugarType(t.Ret, isCtor, vars, 0)}
 	case ast.STParens:
 		return d.goDesugarType(t.Type, isCtor, vars, kindArity)
 	case ast.STApp:
-		return tc.TApp{
+		return ast.TApp{
 			Type:  d.goDesugarType(t.Type, isCtor, vars, len(t.Types)),
-			Types: data.MapSlice(t.Types, func(tt ast.SType) tc.Type { return d.goDesugarType(tt, isCtor, vars, 0) }),
+			Types: data.MapSlice(t.Types, func(tt ast.SType) ast.Type { return d.goDesugarType(tt, isCtor, vars, 0) }),
 			Span:  t.Span,
 		}
 	case ast.STRecord:
-		return tc.TRecord{Row: d.goDesugarType(t.Row, isCtor, vars, 0), Span: t.Span}
+		return ast.TRecord{Row: d.goDesugarType(t.Row, isCtor, vars, 0), Span: t.Span}
 	case ast.STRowEmpty:
-		return tc.TRowEmpty{Span: t.Span}
+		return ast.TRowEmpty{Span: t.Span}
 	case ast.STRowExtend:
 		{
-			labels := data.LabelMapValues(t.Labels, func(tt ast.SType) tc.Type { return d.goDesugarType(tt, isCtor, vars, 0) })
-			return tc.TRowExtend{Labels: labels, Row: d.goDesugarType(t.Row, isCtor, vars, 0), Span: t.Span}
+			labels := data.LabelMapValues(t.Labels, func(tt ast.SType) ast.Type { return d.goDesugarType(tt, isCtor, vars, 0) })
+			return ast.TRowExtend{Labels: labels, Row: d.goDesugarType(t.Row, isCtor, vars, 0), Span: t.Span}
 		}
 	case ast.STImplicit:
-		return tc.TImplicit{Type: d.goDesugarType(t.Type, isCtor, vars, 0), Span: t.Span}
+		return ast.TImplicit{Type: d.goDesugarType(t.Type, isCtor, vars, 0), Span: t.Span}
 	default:
 		panic("unknow type in desugaring: " + ty.String())
 	}
 }
 
-func (d *Desugar) nestLambdaPats(pats []ast.SPattern, exp ast.Expr, locals data.Set[string], tvars map[string]tc.Type) (ast.Expr, error) {
+func (d *Desugar) nestLambdaPats(pats []ast.SPattern, exp ast.Expr, locals data.Set[string], tvars map[string]ast.Type) (ast.Expr, error) {
 	if len(pats) <= 0 {
 		return exp, nil
 	}
@@ -774,7 +774,8 @@ func (d *Desugar) nestLambdaPats(pats []ast.SPattern, exp ast.Expr, locals data.
 			return ast.Lambda{
 				Binder: ast.Binder{Name: pat.V.Name, Span: pat.V.Span},
 				Body:   body,
-				Span:   lexer.NewSpan(pat.GetSpan(), exp.GetSpan()),
+				Span:   data.NewSpan(pat.GetSpan(), exp.GetSpan()),
+				Type:   &ast.Typed{},
 			}, nil
 		}
 	case ast.SImplicitP:
@@ -786,16 +787,17 @@ func (d *Desugar) nestLambdaPats(pats []ast.SPattern, exp ast.Expr, locals data.
 			return ast.Lambda{
 				Binder: ast.Binder{Name: p.V.Name, Span: p.GetSpan(), IsImplicit: true},
 				Body:   body,
-				Span:   lexer.NewSpan(pat.GetSpan(), exp.GetSpan()),
+				Span:   data.NewSpan(pat.GetSpan(), exp.GetSpan()),
+				Type:   &ast.Typed{},
 			}, nil
 		} else {
 			name := d.newVar()
-			vars := []ast.Expr{ast.Var{Name: name, Span: pat.Span}}
+			vars := []ast.Expr{ast.Var{Name: name, Span: pat.Span, Type: &ast.Typed{}}}
 			pattern, err := d.desugarPattern(pat.Pat, locals, tvars)
 			if err != nil {
 				return nil, err
 			}
-			expr := ast.Match{Exps: vars, Cases: []ast.Case{{Patterns: []ast.Pattern{pattern}, Exp: exp}}, Span: exp.GetSpan()}
+			expr := ast.Match{Exps: vars, Cases: []ast.Case{{Patterns: []ast.Pattern{pattern}, Exp: exp}}, Span: exp.GetSpan(), Type: &ast.Typed{}}
 			body, err2 := d.nestLambdaPats(pats[1:], expr, locals, tvars)
 			if err2 != nil {
 				return nil, err2
@@ -803,7 +805,8 @@ func (d *Desugar) nestLambdaPats(pats []ast.SPattern, exp ast.Expr, locals data.
 			return ast.Lambda{
 				Binder: ast.Binder{Name: name, Span: pat.Span, IsImplicit: true},
 				Body:   body,
-				Span:   lexer.NewSpan(pat.Span, exp.GetSpan()),
+				Span:   data.NewSpan(pat.Span, exp.GetSpan()),
+				Type:   &ast.Typed{},
 			}, nil
 		}
 	case ast.SParensP:
@@ -814,8 +817,9 @@ func (d *Desugar) nestLambdaPats(pats []ast.SPattern, exp ast.Expr, locals data.
 	case ast.STypeAnnotationP:
 		{
 			bind := ast.Binder{Name: pat.Par.Name, Span: pat.Par.Span}
-			vars := clone.Clone(tvars).(map[string]tc.Type)
-			bind.Type = d.desugarType(pat.Type, false, vars)
+			vars := clone.Clone(tvars).(map[string]ast.Type)
+			typ := d.desugarType(pat.Type, false, vars)
+			bind.Type = &typ
 			body, err := d.nestLambdaPats(pats[1:], exp, locals, tvars)
 			if err != nil {
 				return nil, err
@@ -823,18 +827,19 @@ func (d *Desugar) nestLambdaPats(pats []ast.SPattern, exp ast.Expr, locals data.
 			return ast.Lambda{
 				Binder: bind,
 				Body:   body,
-				Span:   lexer.NewSpan(pat.Span, exp.GetSpan()),
+				Span:   data.NewSpan(pat.Span, exp.GetSpan()),
+				Type:   &ast.Typed{},
 			}, nil
 		}
 	default:
 		{
-			vars := data.MapSlice(pats, func(t ast.SPattern) ast.Expr { return ast.Var{Name: d.newVar(), Span: t.GetSpan()} })
-			span := lexer.NewSpan(pat.GetSpan(), exp.GetSpan())
+			vars := data.MapSlice(pats, func(t ast.SPattern) ast.Expr { return ast.Var{Name: d.newVar(), Span: t.GetSpan(), Type: &ast.Typed{}} })
+			span := data.NewSpan(pat.GetSpan(), exp.GetSpan())
 			dpats, err := data.MapSliceError(pats, func(t ast.SPattern) (ast.Pattern, error) { return d.desugarPattern(t, locals, tvars) })
 			if err != nil {
 				return nil, err
 			}
-			expr := ast.Match{Exps: vars, Cases: []ast.Case{{Patterns: dpats, Exp: exp}}, Span: span}
+			expr := ast.Match{Exps: vars, Cases: []ast.Case{{Patterns: dpats, Exp: exp}}, Span: span, Type: &ast.Typed{}}
 			binders := data.MapSlice(vars, func(t ast.Expr) ast.Binder { return ast.Binder{Name: t.(ast.Var).Name, Span: t.GetSpan()} })
 			return d.nestLambdas(binders, expr), nil
 		}
@@ -845,10 +850,10 @@ func (d *Desugar) nestLambdas(binders []ast.Binder, exp ast.Expr) ast.Expr {
 	if len(binders) <= 0 {
 		return exp
 	}
-	return ast.Lambda{Binder: binders[0], Body: d.nestLambdas(binders[1:], exp), Span: exp.GetSpan()}
+	return ast.Lambda{Binder: binders[0], Body: d.nestLambdas(binders[1:], exp), Span: exp.GetSpan(), Type: &ast.Typed{}}
 }
 
-func (d *Desugar) nestLets(ld ast.SLetDef, exp ast.Expr, span lexer.Span, locals data.Set[string], tvars map[string]tc.Type) (ast.Expr, error) {
+func (d *Desugar) nestLets(ld ast.SLetDef, exp ast.Expr, span data.Span, locals data.Set[string], tvars map[string]ast.Type) (ast.Expr, error) {
 	switch l := ld.(type) {
 	case ast.SLetBind:
 		{
@@ -856,7 +861,7 @@ func (d *Desugar) nestLets(ld ast.SLetDef, exp ast.Expr, span lexer.Span, locals
 			if err != nil {
 				return nil, err
 			}
-			return ast.Let{Def: def, Body: exp, Span: span}, nil
+			return ast.Let{Def: def, Body: exp, Span: span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SLetPat:
 		{
@@ -869,28 +874,28 @@ func (d *Desugar) nestLets(ld ast.SLetDef, exp ast.Expr, span lexer.Span, locals
 			if err2 != nil {
 				return nil, err2
 			}
-			return ast.Match{Exps: []ast.Expr{expr}, Cases: []ast.Case{cas}, Span: span}, nil
+			return ast.Match{Exps: []ast.Expr{expr}, Cases: []ast.Case{cas}, Span: span, Type: &ast.Typed{}}, nil
 		}
 	default:
 		panic("Got unknow letdef in nestLets")
 	}
 }
 
-func (d *Desugar) nestRecordSelects(exp ast.Expr, labels []ast.Spanned[string], span lexer.Span) ast.Expr {
+func (d *Desugar) nestRecordSelects(exp ast.Expr, labels []ast.Spanned[string], span data.Span) ast.Expr {
 	if len(labels) == 0 {
 		return exp
 	}
-	return d.nestRecordSelects(ast.RecordSelect{Exp: exp, Label: labels[0], Span: span}, labels[1:], span)
+	return d.nestRecordSelects(ast.RecordSelect{Exp: exp, Label: labels[0], Span: span, Type: &ast.Typed{}}, labels[1:], span)
 }
 
-func (d *Desugar) nestRecordRestrictions(exp ast.Expr, labels []string, span lexer.Span) ast.Expr {
+func (d *Desugar) nestRecordRestrictions(exp ast.Expr, labels []string, span data.Span) ast.Expr {
 	if len(labels) == 0 {
 		return exp
 	}
-	return d.nestRecordRestrictions(ast.RecordRestrict{Exp: exp, Label: labels[0], Span: span}, labels[1:], span)
+	return d.nestRecordRestrictions(ast.RecordRestrict{Exp: exp, Label: labels[0], Span: span, Type: &ast.Typed{}}, labels[1:], span)
 }
 
-func (d *Desugar) nestRecordUpdates(exp ast.Expr, labels []ast.Spanned[string], value ast.Expr, isSet bool, span lexer.Span) ast.Expr {
+func (d *Desugar) nestRecordUpdates(exp ast.Expr, labels []ast.Spanned[string], value ast.Expr, isSet bool, span data.Span) ast.Expr {
 	if len(labels) == 0 {
 		return exp
 	}
@@ -898,7 +903,7 @@ func (d *Desugar) nestRecordUpdates(exp ast.Expr, labels []ast.Spanned[string], 
 	shouldSet := isSet || len(tail) > 0
 	selec := value
 	if len(tail) > 0 {
-		selec = ast.RecordSelect{Exp: exp, Label: labels[0], Span: value.GetSpan()}
+		selec = ast.RecordSelect{Exp: exp, Label: labels[0], Span: value.GetSpan(), Type: &ast.Typed{}}
 	}
 	return ast.RecordUpdate{
 		Exp:   exp,
@@ -906,6 +911,7 @@ func (d *Desugar) nestRecordUpdates(exp ast.Expr, labels []ast.Spanned[string], 
 		Value: d.nestRecordUpdates(selec, tail, value, isSet, span),
 		IsSet: shouldSet,
 		Span:  span,
+		Type:  &ast.Typed{},
 	}
 }
 
@@ -924,7 +930,7 @@ func (d *Desugar) convertDoLets(exps []ast.SExpr) []ast.SExpr {
 		if len(body) > 1 {
 			bodyExp = ast.SDo{Exps: body, Span: do.Span}
 		}
-		return []ast.SExpr{ast.SLet{Def: do.Def, Body: bodyExp, Span: lexer.NewSpan(do.Span, bodyExp.GetSpan())}}
+		return []ast.SExpr{ast.SLet{Def: do.Def, Body: bodyExp, Span: data.NewSpan(do.Span, bodyExp.GetSpan())}}
 	} else {
 		res := []ast.SExpr{exp}
 		return append(res, d.convertDoLets(exps[1:])...)
@@ -1115,7 +1121,7 @@ func isVariable(exp ast.Expr) bool {
 
 type CollectedVar struct {
 	name     string
-	span     lexer.Span
+	span     data.Span
 	implicit bool
 	instance bool
 }
@@ -1216,13 +1222,13 @@ func (d *Desugar) addUnusedVars() {
 	}
 }
 
-func (d *Desugar) checkAlias(alias string, span lexer.Span) {
+func (d *Desugar) checkAlias(alias string, span data.Span) {
 	if !d.aliasedImports.Contains(alias) {
 		d.errors = append(d.errors, d.makeError(data.NoAliasFound(alias), span))
 	}
 }
 
-func (d *Desugar) checkShadow(name string, span lexer.Span) {
+func (d *Desugar) checkShadow(name string, span data.Span) {
 	_, has := d.imports[name]
 	if has {
 		err := d.makeError(data.ShadowedVariable(name), span)
@@ -1230,10 +1236,10 @@ func (d *Desugar) checkShadow(name string, span lexer.Span) {
 	}
 }
 
-func (d *Desugar) makeError(msg string, span lexer.Span) ast.CompilerProblem {
-	return ast.CompilerProblem{Msg: msg, Span: span, Filename: d.smod.SourceName, Module: &d.modName, Severity: ast.ERROR}
+func (d *Desugar) makeError(msg string, span data.Span) data.CompilerProblem {
+	return data.CompilerProblem{Msg: msg, Span: span, Filename: d.smod.SourceName, Module: d.modName, Severity: data.ERROR}
 }
 
-func (d *Desugar) makeWarn(msg string, span lexer.Span) ast.CompilerProblem {
-	return ast.CompilerProblem{Msg: msg, Span: span, Filename: d.smod.SourceName, Module: &d.modName, Severity: ast.WARN}
+func (d *Desugar) makeWarn(msg string, span data.Span) data.CompilerProblem {
+	return data.CompilerProblem{Msg: msg, Span: span, Filename: d.smod.SourceName, Module: d.modName, Severity: data.WARN}
 }

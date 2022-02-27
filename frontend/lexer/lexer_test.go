@@ -12,10 +12,10 @@ import (
 func TestSpans(t *testing.T) {
 	tks := lexResource("../../test_data/span.novah")
 
-	test.Equals(t, tks[0].Span, NewSpan2(1, 1, 1, 5))
-	test.Equals(t, tks[1].Span, NewSpan2(1, 6, 1, 19))
-	test.Equals(t, tks[2].Span, NewSpan2(1, 20, 1, 21))
-	test.Equals(t, tks[3].Span, NewSpan2(3, 1, 3, 21))
+	test.Equals(t, tks[0].Span, data.NewSpan2(1, 1, 1, 5))
+	test.Equals(t, tks[1].Span, data.NewSpan2(1, 6, 1, 19))
+	test.Equals(t, tks[2].Span, data.NewSpan2(1, 20, 1, 21))
+	test.Equals(t, tks[3].Span, data.NewSpan2(3, 1, 3, 21))
 	test.Equals(t, tks[4].Type, EOF)
 }
 
@@ -27,13 +27,13 @@ func TestComments(t *testing.T) {
 	foo, _ := data.FindSlice(tks, func(tk Token) bool { return tk.Type == IDENT && *tk.Text == "foo" })
 	other, _ := data.FindSlice(tks, func(tk Token) bool { return tk.Type == IDENT && *tk.Text == "other" })
 
-	test.Equals(t, typ.Span, NewSpan2(4, 1, 4, 5))
-	test.Equals(t, Comment{Text: " comments on type definitions work", Span: NewSpan2(3, 1, 3, 37)}, *typ.Comment)
+	test.Equals(t, typ.Span, data.NewSpan2(4, 1, 4, 5))
+	test.Equals(t, Comment{Text: " comments on type definitions work", Span: data.NewSpan2(3, 1, 3, 37)}, *typ.Comment)
 
-	test.Equals(t, myFun.Span, NewSpan2(10, 1, 10, 6))
-	test.Equals(t, *myFun.Comment, Comment{Text: "\n comments on var\n types work\n", Span: NewSpan2(6, 1, 9, 3), IsMulti: true})
+	test.Equals(t, myFun.Span, data.NewSpan2(10, 1, 10, 6))
+	test.Equals(t, *myFun.Comment, Comment{Text: "\n comments on var\n types work\n", Span: data.NewSpan2(6, 1, 9, 3), IsMulti: true})
 
-	test.Equals(t, *other.Comment, Comment{Text: " comments on var declaration work\n and are concatenated", Span: NewSpan2(13, 1, 14, 24)})
+	test.Equals(t, *other.Comment, Comment{Text: " comments on var declaration work\n and are concatenated", Span: data.NewSpan2(13, 1, 14, 24)})
 
 	test.Equals(t, foo.Comment, nil)
 }

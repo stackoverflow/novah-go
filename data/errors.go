@@ -145,6 +145,16 @@ Foreign methods: (_ : String)#endsWith("."), Math#exp(_)`
 	LET_BANG = "`let!` syntax can only be used inside a computation expression."
 
 	DO_BANG = "`do!` syntax can only be used inside a computation expression."
+
+	RECURSIVE_ROWS = "Recursive row types"
+
+	RECURSIVE_LET = "Let variables cannot be recursive."
+
+	NOT_A_FUNCTION = `Expected expression to be a function.
+If you are trying to pass an instance argument to a function explicitily
+make sure to use the {{}} syntax.`
+
+	RECORD_MERGE = "Cannot merge records with unknown labels."
 )
 
 func UndefinedVarInCtor(name string, typeVars []string) string {
@@ -153,6 +163,84 @@ func UndefinedVarInCtor(name string, typeVars []string) string {
 	}
 	vars := JoinToStringFunc(typeVars, ", ", func(x string) string { return x })
 	return fmt.Sprintf("The variables %s are undefined in constructor %s.", vars, name)
+}
+
+func UndefinedVar(name string) string {
+	return fmt.Sprintf("Undefined variable %s.", name)
+}
+
+func UndefinedType(typ string) string {
+	return fmt.Sprintf(`Undefined type %s
+        
+	Make sure the type is imported: import some.module (MyType)
+	Or if it's a foreign type: foreign import java.io.File`, typ)
+}
+
+func WrongKind(expected, got string) string {
+	return fmt.Sprintf(`Could not match kind
+        
+	%s
+	
+with kind
+
+	%s`, expected, got)
+}
+
+func NotARow(typ string) string {
+	return fmt.Sprintf(`Type
+        
+	%s
+
+is a not a row type.`, typ)
+}
+
+func RecordMissingLabels(labels string) string {
+	return fmt.Sprintf(`Record is missing labels:
+    
+	  %s`, labels)
+}
+
+func TypesDontMatch(a, b, reason string) string {
+	str := fmt.Sprintf(`Cannot match type
+            
+	  %s
+
+with type
+
+	  %s`, a, b)
+
+	if reason != "" {
+		return fmt.Sprintf("%s\n\n%s", str, reason)
+	}
+	return str
+}
+
+func EscapeType(typ string) string {
+	return fmt.Sprintf(`Private type %s escaped its module.
+        
+A public function cannot have a private type.`, typ)
+}
+
+func IncompatibleTypes(t1, t2 string) string {
+	return fmt.Sprintf("Incompatible types $%s and %s.", t1, t2)
+}
+
+func InfiniteType(name string) string {
+	return fmt.Sprintf("Occurs check failed: infinite type %s.", name)
+}
+
+func DuplicateModule(name string) string {
+	return fmt.Sprintf(`Found duplicate module
+        
+	  %s`, name)
+}
+
+func CycleFound(nodes []string) string {
+	return fmt.Sprintf("Found cycle between modules\n\n%s", JoinToStringFunc(nodes, "\n\n", func(s string) string { return "    " + s }))
+}
+
+func ModuleNotFound(name string) string {
+	return fmt.Sprintf("Could not find module %s.", name)
 }
 
 func ExpectedDefinition(name string) string {
@@ -169,6 +257,10 @@ func EmptyImport(ctx string) string {
 
 func WrongArityToCase(got int, expected int) string {
 	return fmt.Sprintf("Case expression expected %d patterns but got %d.", got, expected)
+}
+
+func WrongArityCtorPattern(name string, got, expected int) string {
+	return fmt.Sprintf("Constructor pattern %s expected %d parameter(s) but got %d.", name, expected, got)
 }
 
 func OpTooLong(op string) string {

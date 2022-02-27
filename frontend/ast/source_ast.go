@@ -12,7 +12,7 @@ import (
 
 type Spanned[T any] struct {
 	Val  T
-	Span lexer.Span
+	Span data.Span
 }
 
 func (s Spanned[T]) Offside() int {
@@ -41,7 +41,7 @@ type SModule struct {
 	Foreigns            []SForeignImport
 	Decls               []SDecl
 	Meta                *SMetadata
-	Span                lexer.Span
+	Span                data.Span
 	Comment             *lexer.Comment
 	ResolvedImports     map[string]string
 	ResolvedTypealiases []STypeAliasDecl
@@ -51,14 +51,14 @@ type SModule struct {
 type DeclarationRef struct {
 	Tag   SRefType
 	Name  Spanned[string]
-	Span  lexer.Span
+	Span  data.Span
 	Ctors []Spanned[string]
 	All   bool
 }
 
 type Import struct {
 	Module  Spanned[string]
-	Span    lexer.Span
+	Span    data.Span
 	Alias   *string
 	Auto    bool
 	Comment *lexer.Comment
@@ -68,7 +68,7 @@ type Import struct {
 type SForeignImport struct {
 	Type  string
 	Alias *string
-	Span  lexer.Span
+	Span  data.Span
 }
 
 ///////////////////////////////////////////////
@@ -79,7 +79,7 @@ type SDecl interface {
 	GetName() string
 	GetVisibility() Visibility
 	GetComment() *lexer.Comment
-	GetSpan() lexer.Span
+	GetSpan() data.Span
 	Metadata() SMetadata
 }
 
@@ -88,7 +88,7 @@ type STypeDecl struct {
 	Visibility Visibility
 	TyVars     []string
 	DataCtors  []SDataCtor
-	Span       lexer.Span
+	Span       data.Span
 	Comment    *lexer.Comment
 	Meta       SMetadata
 }
@@ -101,7 +101,7 @@ type SValDecl struct {
 	Visibility Visibility
 	IsInstance bool
 	IsOperator bool
-	Span       lexer.Span
+	Span       data.Span
 	Comment    *lexer.Comment
 	Meta       SMetadata
 }
@@ -111,7 +111,7 @@ type STypeAliasDecl struct {
 	TyVars     []string
 	Type       SType
 	Visibility Visibility
-	Span       lexer.Span
+	Span       data.Span
 	Comment    *lexer.Comment
 	Meta       SMetadata
 	Expanded   SType
@@ -120,7 +120,7 @@ type STypeAliasDecl struct {
 
 type SSignature struct {
 	Type SType
-	Span lexer.Span
+	Span data.Span
 }
 
 func (d STypeDecl) GetName() string {
@@ -129,7 +129,7 @@ func (d STypeDecl) GetName() string {
 func (d STypeDecl) GetVisibility() Visibility {
 	return d.Visibility
 }
-func (d STypeDecl) GetSpan() lexer.Span {
+func (d STypeDecl) GetSpan() data.Span {
 	return d.Span
 }
 func (d STypeDecl) GetComment() *lexer.Comment {
@@ -145,7 +145,7 @@ func (d SValDecl) GetName() string {
 func (d SValDecl) GetVisibility() Visibility {
 	return d.Visibility
 }
-func (d SValDecl) GetSpan() lexer.Span {
+func (d SValDecl) GetSpan() data.Span {
 	return d.Span
 }
 func (d SValDecl) GetComment() *lexer.Comment {
@@ -161,7 +161,7 @@ func (d STypeAliasDecl) GetName() string {
 func (d STypeAliasDecl) GetVisibility() Visibility {
 	return d.Visibility
 }
-func (d STypeAliasDecl) GetSpan() lexer.Span {
+func (d STypeAliasDecl) GetSpan() data.Span {
 	return d.Span
 }
 func (d STypeAliasDecl) GetComment() *lexer.Comment {
@@ -179,7 +179,7 @@ type SDataCtor struct {
 	Name       Spanned[string]
 	Args       []SType
 	Visibility Visibility
-	Span       lexer.Span
+	Span       data.Span
 }
 
 ///////////////////////////////////////////////
@@ -197,28 +197,28 @@ type SMetadata struct {
 type SExpr interface {
 	fmt.Stringer
 	sExpr()
-	GetSpan() lexer.Span
+	GetSpan() data.Span
 	GetComment() *lexer.Comment
 }
 
 type SInt struct {
 	V       int64
 	Text    string
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SFloat struct {
 	V       float64
 	Text    string
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SComplex struct {
 	V       complex128
 	Text    string
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
@@ -226,27 +226,27 @@ type SString struct {
 	V       string
 	Raw     string
 	Multi   bool
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SChar struct {
 	V       rune
 	Raw     string
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SBool struct {
 	V       bool
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SVar struct {
 	Name    string
 	Alias   *string
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
@@ -254,42 +254,42 @@ type SOperator struct {
 	Name     string
 	Alias    *string
 	IsPrefix bool
-	Span     lexer.Span
+	Span     data.Span
 	Comment  *lexer.Comment
 }
 
 type SImplicitVar struct {
 	Name    string
 	Alias   *string
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SConstructor struct {
 	Name    string
 	Alias   *string
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SPatternLiteral struct {
 	Regex   string
 	Raw     string
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SLambda struct {
 	Pats    []SPattern
 	Body    SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SApp struct {
 	Fn      SExpr
 	Arg     SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
@@ -297,7 +297,7 @@ type SBinApp struct {
 	Op      SExpr
 	Left    SExpr
 	Right   SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
@@ -305,91 +305,91 @@ type SIf struct {
 	Cond    SExpr
 	Then    SExpr
 	Else    SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SLet struct {
 	Def     SLetDef
 	Body    SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SMatch struct {
 	Exprs   []SExpr
 	Cases   []SCase
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SAnn struct {
 	Exp     SExpr
 	Type    SType
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SDo struct {
 	Exps    []SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SDoLet struct {
 	Def     SLetDef
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SLetBang struct {
 	Def     SLetDef
 	Body    SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SFor struct {
 	Def     SLetDef
 	Body    SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SParens struct {
 	Exp     SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SUnit struct {
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SRecordEmpty struct {
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SRecordSelect struct {
 	Exp     SExpr
 	Labels  []Spanned[string]
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SRecordExtend struct {
 	Labels  data.LabelMap[SExpr]
 	Exp     SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SRecordRestrict struct {
 	Exp     SExpr
 	Labels  []string
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
@@ -398,87 +398,87 @@ type SRecordUpdate struct {
 	Labels  []Spanned[string]
 	Val     SExpr
 	IsSet   bool
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SRecordMerge struct {
 	Exp1    SExpr
 	Exp2    SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SListLiteral struct {
 	Exps    []SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SSetLiteral struct {
 	Exps    []SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SIndex struct {
 	Exp     SExpr
 	Index   SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SUnderscore struct {
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SWhile struct {
 	Cond    SExpr
 	Exps    []SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SComputation struct {
 	Builder SVar
 	Exps    []SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SReturn struct {
 	Exp     SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SYield struct {
 	Exp     SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SDoBang struct {
 	Exp     SExpr
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type SNil struct {
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 type STypeCast struct {
 	Exp     SExpr
 	Cast    SType
-	Span    lexer.Span
+	Span    data.Span
 	Comment *lexer.Comment
 }
 
 func (_ SInt) sExpr() {}
-func (e SInt) GetSpan() lexer.Span {
+func (e SInt) GetSpan() data.Span {
 	return e.Span
 }
 func (e SInt) GetComment() *lexer.Comment {
@@ -489,7 +489,7 @@ func (e SInt) String() string {
 }
 
 func (_ SFloat) sExpr() {}
-func (e SFloat) GetSpan() lexer.Span {
+func (e SFloat) GetSpan() data.Span {
 	return e.Span
 }
 func (e SFloat) GetComment() *lexer.Comment {
@@ -500,7 +500,7 @@ func (e SFloat) String() string {
 }
 
 func (_ SComplex) sExpr() {}
-func (e SComplex) GetSpan() lexer.Span {
+func (e SComplex) GetSpan() data.Span {
 	return e.Span
 }
 func (e SComplex) GetComment() *lexer.Comment {
@@ -511,7 +511,7 @@ func (e SComplex) String() string {
 }
 
 func (_ SString) sExpr() {}
-func (e SString) GetSpan() lexer.Span {
+func (e SString) GetSpan() data.Span {
 	return e.Span
 }
 func (e SString) GetComment() *lexer.Comment {
@@ -522,7 +522,7 @@ func (e SString) String() string {
 }
 
 func (_ SChar) sExpr() {}
-func (e SChar) GetSpan() lexer.Span {
+func (e SChar) GetSpan() data.Span {
 	return e.Span
 }
 func (e SChar) GetComment() *lexer.Comment {
@@ -533,7 +533,7 @@ func (e SChar) String() string {
 }
 
 func (_ SBool) sExpr() {}
-func (e SBool) GetSpan() lexer.Span {
+func (e SBool) GetSpan() data.Span {
 	return e.Span
 }
 func (e SBool) GetComment() *lexer.Comment {
@@ -544,7 +544,7 @@ func (e SBool) String() string {
 }
 
 func (_ SVar) sExpr() {}
-func (e SVar) GetSpan() lexer.Span {
+func (e SVar) GetSpan() data.Span {
 	return e.Span
 }
 func (e SVar) GetComment() *lexer.Comment {
@@ -564,7 +564,7 @@ func (e SVar) Fullname() string {
 }
 
 func (_ SOperator) sExpr() {}
-func (e SOperator) GetSpan() lexer.Span {
+func (e SOperator) GetSpan() data.Span {
 	return e.Span
 }
 func (e SOperator) GetComment() *lexer.Comment {
@@ -584,7 +584,7 @@ func (e SOperator) Fullname() string {
 }
 
 func (_ SImplicitVar) sExpr() {}
-func (e SImplicitVar) GetSpan() lexer.Span {
+func (e SImplicitVar) GetSpan() data.Span {
 	return e.Span
 }
 func (e SImplicitVar) GetComment() *lexer.Comment {
@@ -604,7 +604,7 @@ func (e SImplicitVar) Fullname() string {
 }
 
 func (_ SConstructor) sExpr() {}
-func (e SConstructor) GetSpan() lexer.Span {
+func (e SConstructor) GetSpan() data.Span {
 	return e.Span
 }
 func (e SConstructor) GetComment() *lexer.Comment {
@@ -624,7 +624,7 @@ func (e SConstructor) Fullname() string {
 }
 
 func (_ SPatternLiteral) sExpr() {}
-func (e SPatternLiteral) GetSpan() lexer.Span {
+func (e SPatternLiteral) GetSpan() data.Span {
 	return e.Span
 }
 func (e SPatternLiteral) GetComment() *lexer.Comment {
@@ -635,7 +635,7 @@ func (e SPatternLiteral) String() string {
 }
 
 func (_ SLambda) sExpr() {}
-func (e SLambda) GetSpan() lexer.Span {
+func (e SLambda) GetSpan() data.Span {
 	return e.Span
 }
 func (e SLambda) GetComment() *lexer.Comment {
@@ -646,7 +646,7 @@ func (e SLambda) String() string {
 }
 
 func (_ SApp) sExpr() {}
-func (e SApp) GetSpan() lexer.Span {
+func (e SApp) GetSpan() data.Span {
 	return e.Span
 }
 func (e SApp) GetComment() *lexer.Comment {
@@ -657,7 +657,7 @@ func (e SApp) String() string {
 }
 
 func (_ SBinApp) sExpr() {}
-func (e SBinApp) GetSpan() lexer.Span {
+func (e SBinApp) GetSpan() data.Span {
 	return e.Span
 }
 func (e SBinApp) GetComment() *lexer.Comment {
@@ -668,7 +668,7 @@ func (e SBinApp) String() string {
 }
 
 func (_ SIf) sExpr() {}
-func (e SIf) GetSpan() lexer.Span {
+func (e SIf) GetSpan() data.Span {
 	return e.Span
 }
 func (e SIf) GetComment() *lexer.Comment {
@@ -679,7 +679,7 @@ func (e SIf) String() string {
 }
 
 func (_ SLet) sExpr() {}
-func (e SLet) GetSpan() lexer.Span {
+func (e SLet) GetSpan() data.Span {
 	return e.Span
 }
 func (e SLet) GetComment() *lexer.Comment {
@@ -690,7 +690,7 @@ func (e SLet) String() string {
 }
 
 func (_ SMatch) sExpr() {}
-func (e SMatch) GetSpan() lexer.Span {
+func (e SMatch) GetSpan() data.Span {
 	return e.Span
 }
 func (e SMatch) GetComment() *lexer.Comment {
@@ -701,7 +701,7 @@ func (e SMatch) String() string {
 }
 
 func (_ SAnn) sExpr() {}
-func (e SAnn) GetSpan() lexer.Span {
+func (e SAnn) GetSpan() data.Span {
 	return e.Span
 }
 func (e SAnn) GetComment() *lexer.Comment {
@@ -712,7 +712,7 @@ func (e SAnn) String() string {
 }
 
 func (_ SDo) sExpr() {}
-func (e SDo) GetSpan() lexer.Span {
+func (e SDo) GetSpan() data.Span {
 	return e.Span
 }
 func (e SDo) GetComment() *lexer.Comment {
@@ -723,7 +723,7 @@ func (e SDo) String() string {
 }
 
 func (_ SDoLet) sExpr() {}
-func (e SDoLet) GetSpan() lexer.Span {
+func (e SDoLet) GetSpan() data.Span {
 	return e.Span
 }
 func (e SDoLet) GetComment() *lexer.Comment {
@@ -734,7 +734,7 @@ func (e SDoLet) String() string {
 }
 
 func (_ SLetBang) sExpr() {}
-func (e SLetBang) GetSpan() lexer.Span {
+func (e SLetBang) GetSpan() data.Span {
 	return e.Span
 }
 func (e SLetBang) GetComment() *lexer.Comment {
@@ -745,7 +745,7 @@ func (e SLetBang) String() string {
 }
 
 func (_ SFor) sExpr() {}
-func (e SFor) GetSpan() lexer.Span {
+func (e SFor) GetSpan() data.Span {
 	return e.Span
 }
 func (e SFor) GetComment() *lexer.Comment {
@@ -756,7 +756,7 @@ func (e SFor) String() string {
 }
 
 func (_ SParens) sExpr() {}
-func (e SParens) GetSpan() lexer.Span {
+func (e SParens) GetSpan() data.Span {
 	return e.Span
 }
 func (e SParens) GetComment() *lexer.Comment {
@@ -767,7 +767,7 @@ func (e SParens) String() string {
 }
 
 func (_ SUnit) sExpr() {}
-func (e SUnit) GetSpan() lexer.Span {
+func (e SUnit) GetSpan() data.Span {
 	return e.Span
 }
 func (e SUnit) GetComment() *lexer.Comment {
@@ -778,7 +778,7 @@ func (e SUnit) String() string {
 }
 
 func (_ SRecordEmpty) sExpr() {}
-func (e SRecordEmpty) GetSpan() lexer.Span {
+func (e SRecordEmpty) GetSpan() data.Span {
 	return e.Span
 }
 func (e SRecordEmpty) GetComment() *lexer.Comment {
@@ -789,7 +789,7 @@ func (e SRecordEmpty) String() string {
 }
 
 func (_ SRecordSelect) sExpr() {}
-func (e SRecordSelect) GetSpan() lexer.Span {
+func (e SRecordSelect) GetSpan() data.Span {
 	return e.Span
 }
 func (e SRecordSelect) GetComment() *lexer.Comment {
@@ -800,7 +800,7 @@ func (e SRecordSelect) String() string {
 }
 
 func (_ SRecordExtend) sExpr() {}
-func (e SRecordExtend) GetSpan() lexer.Span {
+func (e SRecordExtend) GetSpan() data.Span {
 	return e.Span
 }
 func (e SRecordExtend) GetComment() *lexer.Comment {
@@ -811,7 +811,7 @@ func (e SRecordExtend) String() string {
 }
 
 func (_ SRecordRestrict) sExpr() {}
-func (e SRecordRestrict) GetSpan() lexer.Span {
+func (e SRecordRestrict) GetSpan() data.Span {
 	return e.Span
 }
 func (e SRecordRestrict) GetComment() *lexer.Comment {
@@ -822,7 +822,7 @@ func (e SRecordRestrict) String() string {
 }
 
 func (_ SRecordUpdate) sExpr() {}
-func (e SRecordUpdate) GetSpan() lexer.Span {
+func (e SRecordUpdate) GetSpan() data.Span {
 	return e.Span
 }
 func (e SRecordUpdate) GetComment() *lexer.Comment {
@@ -833,7 +833,7 @@ func (e SRecordUpdate) String() string {
 }
 
 func (_ SRecordMerge) sExpr() {}
-func (e SRecordMerge) GetSpan() lexer.Span {
+func (e SRecordMerge) GetSpan() data.Span {
 	return e.Span
 }
 func (e SRecordMerge) GetComment() *lexer.Comment {
@@ -844,7 +844,7 @@ func (e SRecordMerge) String() string {
 }
 
 func (_ SListLiteral) sExpr() {}
-func (e SListLiteral) GetSpan() lexer.Span {
+func (e SListLiteral) GetSpan() data.Span {
 	return e.Span
 }
 func (e SListLiteral) GetComment() *lexer.Comment {
@@ -855,7 +855,7 @@ func (e SListLiteral) String() string {
 }
 
 func (_ SSetLiteral) sExpr() {}
-func (e SSetLiteral) GetSpan() lexer.Span {
+func (e SSetLiteral) GetSpan() data.Span {
 	return e.Span
 }
 func (e SSetLiteral) GetComment() *lexer.Comment {
@@ -866,7 +866,7 @@ func (e SSetLiteral) String() string {
 }
 
 func (_ SIndex) sExpr() {}
-func (e SIndex) GetSpan() lexer.Span {
+func (e SIndex) GetSpan() data.Span {
 	return e.Span
 }
 func (e SIndex) GetComment() *lexer.Comment {
@@ -877,7 +877,7 @@ func (e SIndex) String() string {
 }
 
 func (_ SUnderscore) sExpr() {}
-func (e SUnderscore) GetSpan() lexer.Span {
+func (e SUnderscore) GetSpan() data.Span {
 	return e.Span
 }
 func (e SUnderscore) GetComment() *lexer.Comment {
@@ -888,7 +888,7 @@ func (e SUnderscore) String() string {
 }
 
 func (_ SWhile) sExpr() {}
-func (e SWhile) GetSpan() lexer.Span {
+func (e SWhile) GetSpan() data.Span {
 	return e.Span
 }
 func (e SWhile) GetComment() *lexer.Comment {
@@ -899,7 +899,7 @@ func (e SWhile) String() string {
 }
 
 func (_ SComputation) sExpr() {}
-func (e SComputation) GetSpan() lexer.Span {
+func (e SComputation) GetSpan() data.Span {
 	return e.Span
 }
 func (e SComputation) GetComment() *lexer.Comment {
@@ -910,7 +910,7 @@ func (e SComputation) String() string {
 }
 
 func (_ SReturn) sExpr() {}
-func (e SReturn) GetSpan() lexer.Span {
+func (e SReturn) GetSpan() data.Span {
 	return e.Span
 }
 func (e SReturn) GetComment() *lexer.Comment {
@@ -921,7 +921,7 @@ func (e SReturn) String() string {
 }
 
 func (_ SYield) sExpr() {}
-func (e SYield) GetSpan() lexer.Span {
+func (e SYield) GetSpan() data.Span {
 	return e.Span
 }
 func (e SYield) GetComment() *lexer.Comment {
@@ -932,7 +932,7 @@ func (e SYield) String() string {
 }
 
 func (_ SDoBang) sExpr() {}
-func (e SDoBang) GetSpan() lexer.Span {
+func (e SDoBang) GetSpan() data.Span {
 	return e.Span
 }
 func (e SDoBang) GetComment() *lexer.Comment {
@@ -943,7 +943,7 @@ func (e SDoBang) String() string {
 }
 
 func (_ SNil) sExpr() {}
-func (e SNil) GetSpan() lexer.Span {
+func (e SNil) GetSpan() data.Span {
 	return e.Span
 }
 func (e SNil) GetComment() *lexer.Comment {
@@ -954,7 +954,7 @@ func (e SNil) String() string {
 }
 
 func (_ STypeCast) sExpr() {}
-func (e STypeCast) GetSpan() lexer.Span {
+func (e STypeCast) GetSpan() data.Span {
 	return e.Span
 }
 func (e STypeCast) GetComment() *lexer.Comment {
@@ -985,8 +985,8 @@ type SCase struct {
 	Guard SExpr
 }
 
-func (c *SCase) PatternSpan() lexer.Span {
-	return lexer.NewSpan(c.Pats[0].GetSpan(), c.Pats[len(c.Pats)-1].GetSpan())
+func (c *SCase) PatternSpan() data.Span {
+	return data.NewSpan(c.Pats[0].GetSpan(), c.Pats[len(c.Pats)-1].GetSpan())
 }
 
 ///////////////////////////////////////////////
@@ -1020,7 +1020,7 @@ func (def SLetPat) GetExpr() SExpr {
 
 type SBinder struct {
 	Name       string
-	Span       lexer.Span
+	Span       data.Span
 	IsImplicit bool
 }
 
@@ -1031,16 +1031,16 @@ type SBinder struct {
 type SPattern interface {
 	fmt.Stringer
 	sPattern()
-	GetSpan() lexer.Span
+	GetSpan() data.Span
 }
 
 type SWildcard struct {
-	Span lexer.Span
+	Span data.Span
 }
 
 type SLiteralP struct {
 	Lit  SExpr
-	Span lexer.Span
+	Span data.Span
 }
 
 type SVarP struct {
@@ -1050,45 +1050,45 @@ type SVarP struct {
 type SCtorP struct {
 	Ctor   SConstructor
 	Fields []SPattern
-	Span   lexer.Span
+	Span   data.Span
 }
 
 type SRecordP struct {
 	Labels data.LabelMap[SPattern]
-	Span   lexer.Span
+	Span   data.Span
 }
 
 type SListP struct {
 	Elems []SPattern
 	Tail  SPattern
-	Span  lexer.Span
+	Span  data.Span
 }
 
 type SNamed struct {
 	Pat  SPattern
 	Name Spanned[string]
-	Span lexer.Span
+	Span data.Span
 }
 
 type SUnitP struct {
-	Span lexer.Span
+	Span data.Span
 }
 
 type STypeTest struct {
 	Type  SType
 	Alias *string
-	Span  lexer.Span
+	Span  data.Span
 }
 
 type SImplicitP struct {
 	Pat  SPattern
-	Span lexer.Span
+	Span data.Span
 }
 
 type STupleP struct {
 	P1   SPattern
 	P2   SPattern
-	Span lexer.Span
+	Span data.Span
 }
 
 type SRegexP struct {
@@ -1098,18 +1098,18 @@ type SRegexP struct {
 // will be desugared in the desugar phase
 type SParensP struct {
 	Pat  SPattern
-	Span lexer.Span
+	Span data.Span
 }
 
 // will be desugared in the desugar phase
 type STypeAnnotationP struct {
 	Par  SVar
 	Type SType
-	Span lexer.Span
+	Span data.Span
 }
 
 func (_ SWildcard) sPattern() {}
-func (p SWildcard) GetSpan() lexer.Span {
+func (p SWildcard) GetSpan() data.Span {
 	return p.Span
 }
 func (p SWildcard) String() string {
@@ -1117,7 +1117,7 @@ func (p SWildcard) String() string {
 }
 
 func (_ SLiteralP) sPattern() {}
-func (p SLiteralP) GetSpan() lexer.Span {
+func (p SLiteralP) GetSpan() data.Span {
 	return p.Span
 }
 func (p SLiteralP) String() string {
@@ -1125,7 +1125,7 @@ func (p SLiteralP) String() string {
 }
 
 func (_ SVarP) sPattern() {}
-func (p SVarP) GetSpan() lexer.Span {
+func (p SVarP) GetSpan() data.Span {
 	return p.V.Span
 }
 func (p SVarP) String() string {
@@ -1133,7 +1133,7 @@ func (p SVarP) String() string {
 }
 
 func (_ SCtorP) sPattern() {}
-func (p SCtorP) GetSpan() lexer.Span {
+func (p SCtorP) GetSpan() data.Span {
 	return p.Span
 }
 func (p SCtorP) String() string {
@@ -1141,7 +1141,7 @@ func (p SCtorP) String() string {
 }
 
 func (_ SRecordP) sPattern() {}
-func (p SRecordP) GetSpan() lexer.Span {
+func (p SRecordP) GetSpan() data.Span {
 	return p.Span
 }
 func (p SRecordP) String() string {
@@ -1149,7 +1149,7 @@ func (p SRecordP) String() string {
 }
 
 func (_ SListP) sPattern() {}
-func (p SListP) GetSpan() lexer.Span {
+func (p SListP) GetSpan() data.Span {
 	return p.Span
 }
 func (p SListP) String() string {
@@ -1164,7 +1164,7 @@ func (p SListP) String() string {
 }
 
 func (_ SNamed) sPattern() {}
-func (p SNamed) GetSpan() lexer.Span {
+func (p SNamed) GetSpan() data.Span {
 	return p.Span
 }
 func (p SNamed) String() string {
@@ -1172,7 +1172,7 @@ func (p SNamed) String() string {
 }
 
 func (_ SUnitP) sPattern() {}
-func (p SUnitP) GetSpan() lexer.Span {
+func (p SUnitP) GetSpan() data.Span {
 	return p.Span
 }
 func (p SUnitP) String() string {
@@ -1180,7 +1180,7 @@ func (p SUnitP) String() string {
 }
 
 func (_ STypeTest) sPattern() {}
-func (p STypeTest) GetSpan() lexer.Span {
+func (p STypeTest) GetSpan() data.Span {
 	return p.Span
 }
 func (p STypeTest) String() string {
@@ -1191,7 +1191,7 @@ func (p STypeTest) String() string {
 }
 
 func (_ SImplicitP) sPattern() {}
-func (p SImplicitP) GetSpan() lexer.Span {
+func (p SImplicitP) GetSpan() data.Span {
 	return p.Span
 }
 func (p SImplicitP) String() string {
@@ -1199,7 +1199,7 @@ func (p SImplicitP) String() string {
 }
 
 func (_ STupleP) sPattern() {}
-func (p STupleP) GetSpan() lexer.Span {
+func (p STupleP) GetSpan() data.Span {
 	return p.Span
 }
 func (p STupleP) String() string {
@@ -1207,7 +1207,7 @@ func (p STupleP) String() string {
 }
 
 func (_ SRegexP) sPattern() {}
-func (p SRegexP) GetSpan() lexer.Span {
+func (p SRegexP) GetSpan() data.Span {
 	return p.Regex.Span
 }
 func (p SRegexP) String() string {
@@ -1215,7 +1215,7 @@ func (p SRegexP) String() string {
 }
 
 func (_ SParensP) sPattern() {}
-func (p SParensP) GetSpan() lexer.Span {
+func (p SParensP) GetSpan() data.Span {
 	return p.Span
 }
 func (p SParensP) String() string {
@@ -1223,7 +1223,7 @@ func (p SParensP) String() string {
 }
 
 func (_ STypeAnnotationP) sPattern() {}
-func (p STypeAnnotationP) GetSpan() lexer.Span {
+func (p STypeAnnotationP) GetSpan() data.Span {
 	return p.Span
 }
 func (p STypeAnnotationP) String() string {

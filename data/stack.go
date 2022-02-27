@@ -30,6 +30,10 @@ func (s *Stack[T]) Pop() T {
 	return v
 }
 
+func (s *Stack[T]) Peek() T {
+	return s.vals[len(s.vals)-1]
+}
+
 func (s *Stack[T]) ToSlice() []T {
 	return ReverseSlice(s.vals)
 }

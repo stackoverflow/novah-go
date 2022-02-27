@@ -7,39 +7,9 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/stackoverflow/novah-go/data"
 )
-
-type Pos struct {
-	Line int
-	Col  int
-}
-
-type Span struct {
-	Start Pos
-	End   Pos
-}
-
-func NewSpan(s1 Span, s2 Span) Span {
-	return Span{s1.Start, s2.End}
-}
-
-func NewSpan2(ls int, cs int, le int, ce int) Span {
-	return Span{Pos{ls, cs}, Pos{le, ce}}
-}
-
-func (s Span) String() string {
-	return fmt.Sprintf("%d:%d - %d:%d", s.Start.Line, s.Start.Col, s.End.Line, s.End.Col)
-}
-
-// Returns true if there's no lines between these spans
-func (s Span) adjacent(other Span) bool {
-	return s.End.Line+1 == other.Start.Line
-}
-
-// Returns true if this ends on the same line as other starts
-func (s Span) SameLine(other Span) bool {
-	return s.End.Line == other.Start.Line
-}
 
 type TokenType int
 
@@ -110,13 +80,13 @@ const (
 
 type Comment struct {
 	Text    string
-	Span    Span
+	Span    data.Span
 	IsMulti bool
 }
 
 type Token struct {
 	Type    TokenType
-	Span    Span
+	Span    data.Span
 	Text    *string
 	Value   any
 	Comment *Comment
@@ -167,7 +137,7 @@ func (lex *Lexer) Scan() Token {
 	startCol := lex.col
 
 	if !lex.HasMore() {
-		span := Span{Pos{startLine, startCol}, Pos{startLine, startCol}}
+		span := data.NewSpan2(startLine, startCol, startLine, startCol)
 		return Token{Type: EOF, Span: span}
 	}
 
@@ -179,18 +149,18 @@ func (lex *Lexer) Scan() Token {
 		peeked := lex.peekNoErr()
 		if peeked == '/' {
 			comm := lex.lineComment()
-			span := Span{Pos{startLine, startCol}, Pos{lex.line, lex.col}}
+			span := data.NewSpan2(startLine, startCol, lex.line, lex.col)
 			lex.consumeWhiteSpace()
 			nex := lex.Scan()
 			nextComm := nex.Comment
 			// concat // comments
-			if nextComm != nil && !nextComm.IsMulti && span.adjacent(nextComm.Span) {
-				newComm := Comment{Text: fmt.Sprintf("%s\n%s", comm, nextComm.Text), Span: NewSpan(span, nextComm.Span)}
+			if nextComm != nil && !nextComm.IsMulti && span.Adjacent(nextComm.Span) {
+				newComm := Comment{Text: fmt.Sprintf("%s\n%s", comm, nextComm.Text), Span: data.NewSpan(span, nextComm.Span)}
 				nex.Comment = &newComm
 				return nex
 			}
 			// if there's a blank line between the comment the definition don't add
-			if nex.Comment != nil || !span.adjacent(nex.Span) {
+			if nex.Comment != nil || !span.Adjacent(nex.Span) {
 				return nex
 			}
 			comment = &Comment{comm, span, false}
@@ -199,11 +169,11 @@ func (lex *Lexer) Scan() Token {
 		}
 		if peeked == '*' {
 			comm := lex.multilineComment()
-			span := Span{Pos{startLine, startCol}, Pos{lex.line, lex.col}}
+			span := data.NewSpan2(startLine, startCol, lex.line, lex.col)
 			lex.consumeWhiteSpace()
 			nex := lex.Scan()
 			// if there's a blank line between the comment the definition don't add
-			if nex.Comment != nil || !span.adjacent(nex.Span) {
+			if nex.Comment != nil || !span.Adjacent(nex.Span) {
 				return nex
 			}
 			comment = &Comment{comm, span, true}
@@ -298,7 +268,7 @@ func (lex *Lexer) Scan() Token {
 		}
 	}
 
-	token.Span = Span{Pos{startLine, startCol}, Pos{lex.line, lex.col}}
+	token.Span = data.NewSpan2(startLine, startCol, lex.line, lex.col)
 	token.Comment = comment
 	return token
 }
@@ -676,7 +646,7 @@ func (lex *Lexer) consumeWhiteSpace() {
 }
 
 func (lex *Lexer) lexError(msg string) {
-	span := Span{Pos{lex.line, lex.col}, Pos{lex.line, lex.col}}
+	span := data.NewSpan2(lex.line, lex.col, lex.line, lex.col)
 	panic(LexerError{msg, span})
 }
 
@@ -771,7 +741,7 @@ var operators map[rune]bool = map[rune]bool{
 
 type LexerError struct {
 	Msg  string
-	Span Span
+	Span data.Span
 }
 
 func (err LexerError) Error() string {

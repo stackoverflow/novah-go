@@ -1,0 +1,33 @@
+module test
+
+i = 12
+            
+b : Byte
+b = 12
+
+b2 = 12 : Byte
+
+s : Int16
+s = 12
+
+l = 99999999
+
+l2 : Uint
+l2 = 12
+
+d = 12.0
+
+f = 12.0 : Float64
+
+bi = 0b1101011
+
+bi2 : Byte
+bi2 = 0b1101011
+
+hex = 0xFF
+
+hex2 : Uint64
+hex2 = 0xFF
+
+hex3 : Int16
+hex3 = 0xFF

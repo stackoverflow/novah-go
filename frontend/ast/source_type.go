@@ -6,62 +6,61 @@ import (
 
 	"github.com/huandu/go-clone"
 	"github.com/stackoverflow/novah-go/data"
-	"github.com/stackoverflow/novah-go/frontend/lexer"
 )
 
 type SType interface {
 	sType()
-	GetSpan() lexer.Span
+	GetSpan() data.Span
 	Clone() SType
-	WithSpan(lexer.Span) SType
+	WithSpan(data.Span) SType
 	fmt.Stringer
 }
 
 type STConst struct {
 	Name  string
 	Alias *string
-	Span  lexer.Span
+	Span  data.Span
 }
 
 type STApp struct {
 	Type  SType
 	Types []SType
-	Span  lexer.Span
+	Span  data.Span
 }
 
 type STFun struct {
 	Arg  SType
 	Ret  SType
-	Span lexer.Span
+	Span data.Span
 }
 
 type STParens struct {
 	Type SType
-	Span lexer.Span
+	Span data.Span
 }
 
 type STRecord struct {
 	Row  SType
-	Span lexer.Span
+	Span data.Span
 }
 
 type STRowEmpty struct {
-	Span lexer.Span
+	Span data.Span
 }
 
 type STRowExtend struct {
 	Labels data.LabelMap[SType]
 	Row    SType
-	Span   lexer.Span
+	Span   data.Span
 }
 
 type STImplicit struct {
 	Type SType
-	Span lexer.Span
+	Span data.Span
 }
 
 func (t STConst) sType() {}
-func (t STConst) GetSpan() lexer.Span {
+func (t STConst) GetSpan() data.Span {
 	return t.Span
 }
 func (t STConst) String() string {
@@ -76,13 +75,13 @@ func (t STConst) Fullname() string {
 func (t STConst) Clone() SType {
 	return clone.Clone(t).(STConst)
 }
-func (t STConst) WithSpan(span lexer.Span) SType {
+func (t STConst) WithSpan(span data.Span) SType {
 	t.Span = span
 	return t
 }
 
 func (t STApp) sType() {}
-func (t STApp) GetSpan() lexer.Span {
+func (t STApp) GetSpan() data.Span {
 	return t.Span
 }
 func (t STApp) String() string {
@@ -95,13 +94,13 @@ func (t STApp) String() string {
 func (t STApp) Clone() SType {
 	return clone.Clone(t).(STApp)
 }
-func (t STApp) WithSpan(span lexer.Span) SType {
+func (t STApp) WithSpan(span data.Span) SType {
 	t.Span = span
 	return t
 }
 
 func (_ STFun) sType() {}
-func (t STFun) GetSpan() lexer.Span {
+func (t STFun) GetSpan() data.Span {
 	return t.Span
 }
 func (t STFun) String() string {
@@ -110,13 +109,13 @@ func (t STFun) String() string {
 func (t STFun) Clone() SType {
 	return clone.Clone(t).(STFun)
 }
-func (t STFun) WithSpan(span lexer.Span) SType {
+func (t STFun) WithSpan(span data.Span) SType {
 	t.Span = span
 	return t
 }
 
 func (_ STParens) sType() {}
-func (t STParens) GetSpan() lexer.Span {
+func (t STParens) GetSpan() data.Span {
 	return t.Span
 }
 func (t STParens) String() string {
@@ -125,13 +124,13 @@ func (t STParens) String() string {
 func (t STParens) Clone() SType {
 	return clone.Clone(t).(STParens)
 }
-func (t STParens) WithSpan(span lexer.Span) SType {
+func (t STParens) WithSpan(span data.Span) SType {
 	t.Span = span
 	return t
 }
 
 func (_ STImplicit) sType() {}
-func (t STImplicit) GetSpan() lexer.Span {
+func (t STImplicit) GetSpan() data.Span {
 	return t.Span
 }
 func (t STImplicit) String() string {
@@ -140,13 +139,13 @@ func (t STImplicit) String() string {
 func (t STImplicit) Clone() SType {
 	return clone.Clone(t).(STImplicit)
 }
-func (t STImplicit) WithSpan(span lexer.Span) SType {
+func (t STImplicit) WithSpan(span data.Span) SType {
 	t.Span = span
 	return t
 }
 
 func (_ STRowEmpty) sType() {}
-func (t STRowEmpty) GetSpan() lexer.Span {
+func (t STRowEmpty) GetSpan() data.Span {
 	return t.Span
 }
 func (t STRowEmpty) String() string {
@@ -155,13 +154,13 @@ func (t STRowEmpty) String() string {
 func (t STRowEmpty) Clone() SType {
 	return clone.Clone(t).(STRowEmpty)
 }
-func (t STRowEmpty) WithSpan(span lexer.Span) SType {
+func (t STRowEmpty) WithSpan(span data.Span) SType {
 	t.Span = span
 	return t
 }
 
 func (_ STRowExtend) sType() {}
-func (t STRowExtend) GetSpan() lexer.Span {
+func (t STRowExtend) GetSpan() data.Span {
 	return t.Span
 }
 func (t STRowExtend) String() string {
@@ -173,13 +172,13 @@ func (t STRowExtend) String() string {
 func (t STRowExtend) Clone() SType {
 	return clone.Clone(t).(STRowExtend)
 }
-func (t STRowExtend) WithSpan(span lexer.Span) SType {
+func (t STRowExtend) WithSpan(span data.Span) SType {
 	t.Span = span
 	return t
 }
 
 func (_ STRecord) sType() {}
-func (t STRecord) GetSpan() lexer.Span {
+func (t STRecord) GetSpan() data.Span {
 	return t.Span
 }
 func (t STRecord) String() string {
@@ -198,7 +197,7 @@ func (t STRecord) String() string {
 func (t STRecord) Clone() SType {
 	return clone.Clone(t).(STRecord)
 }
-func (t STRecord) WithSpan(span lexer.Span) SType {
+func (t STRecord) WithSpan(span data.Span) SType {
 	t.Span = span
 	return t
 }

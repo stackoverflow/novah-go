@@ -12,8 +12,8 @@ type parser struct {
 	sourceName string
 
 	iter       *PeekableIterator
-	moduleName *string
-	errors     []ast.CompilerProblem
+	moduleName string
+	errors     []data.CompilerProblem
 }
 
 func NewParser(tokens *lexer.Lexer) *parser {
@@ -23,11 +23,11 @@ func NewParser(tokens *lexer.Lexer) *parser {
 	}
 }
 
-func (p *parser) ParseFullModule() (res ast.SModule, errs []ast.CompilerProblem) {
+func (p *parser) ParseFullModule() (res ast.SModule, errs []data.CompilerProblem) {
 	defer func() {
 		if r := recover(); r != nil {
 			var msg string
-			var span lexer.Span
+			var span data.Span
 			switch e := r.(type) {
 			case lexer.LexerError:
 				{
@@ -43,7 +43,7 @@ func (p *parser) ParseFullModule() (res ast.SModule, errs []ast.CompilerProblem)
 				panic("Got unexpected error in parseFullModule")
 			}
 			errs = append(errs, p.errors...)
-			errs = append(errs, ast.CompilerProblem{Msg: msg, Span: span, Filename: p.sourceName, Module: p.moduleName, Severity: ast.FATAL})
+			errs = append(errs, data.CompilerProblem{Msg: msg, Span: span, Filename: p.sourceName, Module: p.moduleName, Severity: data.FATAL})
 		}
 	}()
 
@@ -54,7 +54,7 @@ func (p *parser) ParseFullModule() (res ast.SModule, errs []ast.CompilerProblem)
 
 func (p *parser) parseFullModule() ast.SModule {
 	mdef := p.parseModule()
-	p.moduleName = &mdef.name.Val
+	p.moduleName = mdef.name.Val
 
 	var imports []ast.Import
 	next := p.iter.peek().Type
@@ -70,7 +70,7 @@ func (p *parser) parseFullModule() ast.SModule {
 			defer func() {
 				if r := recover(); r != nil {
 					var msg string
-					var span lexer.Span
+					var span data.Span
 					switch e := r.(type) {
 					case lexer.LexerError:
 						{
@@ -85,7 +85,7 @@ func (p *parser) parseFullModule() ast.SModule {
 					default:
 						panic("Got unexpected error in parseFullModule")
 					}
-					p.errors = append(p.errors, ast.CompilerProblem{Msg: msg, Span: span, Filename: p.sourceName, Module: p.moduleName, Severity: ast.ERROR})
+					p.errors = append(p.errors, data.CompilerProblem{Msg: msg, Span: span, Filename: p.sourceName, Module: p.moduleName, Severity: data.ERROR})
 					p.fastForward()
 				}
 			}()
@@ -765,7 +765,7 @@ func (p *parser) parseIf() ast.SExpr {
 		}
 	}
 
-	var end lexer.Span
+	var end data.Span
 	if elses != nil {
 		end = elses.GetSpan()
 	} else {
@@ -1010,7 +1010,7 @@ func (p *parser) parseRecordOrImplicit() ast.SExpr {
 			exp = ast.SRecordEmpty{}
 		}
 		end := p.expect(lexer.RBRACKET, withError(data.RBracketExpected("record")))
-		return ast.SRecordExtend{Labels: data.LabelMapFrom(rows), Exp: exp, Span: span(begin.Span, end.Span), Comment: begin.Comment}
+		return ast.SRecordExtend{Labels: data.LabelMapFrom(rows...), Exp: exp, Span: span(begin.Span, end.Span), Comment: begin.Comment}
 	})
 }
 
@@ -1188,7 +1188,7 @@ func (p *parser) tryParsePattern(isDestructuring bool) (ast.SPattern, bool) {
 				pat = ast.SCtorP{Ctor: ctor, Fields: []ast.SPattern{}, Span: span(tk.Span, ctor.Span)}
 			} else {
 				fields := tryParseListOfDef(p, func() (ast.SPattern, bool) { return p.tryParsePattern(false) })
-				var end lexer.Span
+				var end data.Span
 				if len(fields) == 0 {
 					end = ctor.Span
 				} else {
@@ -1211,7 +1211,7 @@ func (p *parser) tryParsePattern(isDestructuring bool) (ast.SPattern, bool) {
 					return p.parsePatternRow()
 				})
 				end := p.expect(lexer.RBRACKET, withError(data.RBracketExpected("record pattern"))).Span
-				pat = ast.SRecordP{Labels: data.LabelMapFrom(rows), Span: span(tk.Span, end)}
+				pat = ast.SRecordP{Labels: data.LabelMapFrom(rows...), Span: span(tk.Span, end)}
 			}
 		}
 	case lexer.LSBRACKET:
@@ -1343,7 +1343,7 @@ func (p *parser) parseTypeAtom(inCtor bool) (ast.SType, bool) {
 		} else {
 			rowInner = ast.STRowEmpty{Span: span(tk, p.iter.current.Span)}
 		}
-		return ast.STRowExtend{Labels: data.LabelMapFrom(labels), Row: rowInner, Span: span(tk, p.iter.current.Span)}
+		return ast.STRowExtend{Labels: data.LabelMapFrom(labels...), Row: rowInner, Span: span(tk, p.iter.current.Span)}
 	}
 
 	tk := p.iter.peek()
@@ -1575,7 +1575,7 @@ func between[T any](p *parser, ttype lexer.TokenType, fun func() T) []T {
 	return res
 }
 
-func (p *parser) expect(ttype lexer.TokenType, err func(lexer.Token) data.Tuple[string, lexer.Span]) lexer.Token {
+func (p *parser) expect(ttype lexer.TokenType, err func(lexer.Token) data.Tuple[string, data.Span]) lexer.Token {
 	tk := p.iter.next()
 	if tk.Type == ttype {
 		return tk
@@ -1588,26 +1588,26 @@ func throwMismatchedIdentation(tk lexer.Token) {
 	throwError(withError(data.MISMATCHED_INDENTATION)(tk))
 }
 
-func throwError(err data.Tuple[string, lexer.Span]) any {
+func throwError(err data.Tuple[string, data.Span]) any {
 	panic(ParserError{err.V1, err.V2})
 }
 
-func throwError2(msg string, span lexer.Span) any {
+func throwError2(msg string, span data.Span) any {
 	panic(ParserError{msg, span})
 }
 
-func withError(msg string) func(lexer.Token) data.Tuple[string, lexer.Span] {
-	return func(tk lexer.Token) data.Tuple[string, lexer.Span] {
-		return data.Tuple[string, lexer.Span]{
+func withError(msg string) func(lexer.Token) data.Tuple[string, data.Span] {
+	return func(tk lexer.Token) data.Tuple[string, data.Span] {
+		return data.Tuple[string, data.Span]{
 			V1: msg,
 			V2: tk.Span,
 		}
 	}
 }
 
-func noErr() func(lexer.Token) data.Tuple[string, lexer.Span] {
-	return func(tk lexer.Token) data.Tuple[string, lexer.Span] {
-		return data.Tuple[string, lexer.Span]{
+func noErr() func(lexer.Token) data.Tuple[string, data.Span] {
+	return func(tk lexer.Token) data.Tuple[string, data.Span] {
+		return data.Tuple[string, data.Span]{
 			V1: "Cannot happen, token " + *tk.Text,
 			V2: tk.Span,
 		}
@@ -1638,17 +1638,17 @@ var statementEnding = map[lexer.TokenType]bool{
 	lexer.COMMA:     true,
 }
 
-func span(s1 lexer.Span, s2 lexer.Span) lexer.Span {
-	return lexer.NewSpan(s1, s2)
+func span(s1 data.Span, s2 data.Span) data.Span {
+	return data.NewSpan(s1, s2)
 }
 
-func spanned[T any](x T, span lexer.Span) ast.Spanned[T] {
+func spanned[T any](x T, span data.Span) ast.Spanned[T] {
 	return ast.Spanned[T]{Val: x, Span: span}
 }
 
 type ParserError struct {
 	msg  string
-	span lexer.Span
+	span data.Span
 }
 
 func (err ParserError) Error() string {
@@ -1657,6 +1657,6 @@ func (err ParserError) Error() string {
 
 type ModuleDef struct {
 	name    ast.Spanned[string]
-	span    lexer.Span
+	span    data.Span
 	comment *lexer.Comment
 }

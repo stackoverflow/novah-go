@@ -17,8 +17,8 @@ func TestCtorName(t *testing.T) {
 
 	type Wrong = Wrong | NotWrong`
 
-	ast := parseString(code, t)
-	des := NewDesugar(ast, typechecker.NewTypechecker())
+	astt := parseString(code, t)
+	des := NewDesugar(astt, typechecker.NewTypechecker())
 	_, err := des.Desugar()
 	if err != nil {
 		t.Error("fatal error during desugar: " + err.Error())
@@ -58,8 +58,8 @@ func TestIndentation(t *testing.T) {
 			Some _ -> 1
 			None -> 0`
 
-	ast := parseString(code, t)
-	des := NewDesugar(ast, typechecker.NewTypechecker())
+	astt := parseString(code, t)
+	des := NewDesugar(astt, typechecker.NewTypechecker())
 	_, err := des.Desugar()
 	if err != nil {
 		t.Error("fatal error during desugar: " + err.Error())

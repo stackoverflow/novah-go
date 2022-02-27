@@ -1,10 +1,7 @@
-package ast
+package data
 
 import (
 	"fmt"
-
-	"github.com/stackoverflow/novah-go/data"
-	"github.com/stackoverflow/novah-go/frontend/lexer"
 )
 
 type Severity = int
@@ -22,11 +19,12 @@ const (
 )
 
 type CompilerProblem struct {
-	Msg      string
-	Span     lexer.Span
-	Filename string
-	Module   *string
-	Severity Severity
+	Msg           string
+	Span          Span
+	Filename      string
+	Module        string
+	Severity      Severity
+	TypingContext string
 }
 
 func (cp CompilerProblem) Error() string {
@@ -35,10 +33,10 @@ func (cp CompilerProblem) Error() string {
 
 func (err CompilerProblem) FormatToConsole() string {
 	var mod string
-	if err.Module != nil {
-		mod = fmt.Sprintf("module %s%s%s", yellow, *err.Module, reset)
+	if err.Module != "" {
+		mod = fmt.Sprintf("module %s%s%s", yellow, err.Module, reset)
 	}
 	at := fmt.Sprintf("at %s:%s\n\n", err.Filename, err.Span.String())
 
-	return fmt.Sprintf("%s%s%s\n\n", mod, at, data.PrependIdent(err.Msg, "  "))
+	return fmt.Sprintf("%s%s%s\n\n%s", mod, at, PrependIdent(err.Msg, "  "), err.TypingContext)
 }
