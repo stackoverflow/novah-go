@@ -18,9 +18,11 @@ type Typechecker struct {
 }
 
 func NewTypechecker() *Typechecker {
+	env := NewEnv()
+	env.AddPrimitiveTypes()
 	tc := &Typechecker{
 		TypeVarMap: make(map[int]string),
-		env:        NewEnv(),
+		env:        env,
 	}
 	uni := NewUnification(tc)
 	infer := NewInference(tc, uni)
@@ -55,6 +57,10 @@ func (tc *Typechecker) Infer(mod ast.Module) (ModuleEnv, error) {
 
 func (tc *Typechecker) Errors() []data.CompilerProblem {
 	return tc.infer.errors
+}
+
+func (tc *Typechecker) Env() *Env {
+	return tc.env
 }
 
 func (tc *Typechecker) instantiate(level ast.Level, typ ast.Type) ast.Type {

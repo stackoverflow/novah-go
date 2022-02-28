@@ -150,11 +150,24 @@ func (i *Inference) inferModule(mod ast.Module) (ModuleEnv, error) {
 func (i *Inference) infer(env *Env, level ast.Level, expr ast.Expr) (ast.Type, *data.CompilerProblem) {
 	switch e := expr.(type) {
 	case ast.Int:
-		return e.WithType(tInt), nil
+		// TODO: check the actual size of int
+		if validInt32(e) {
+			return e.WithType(tInt), nil
+		} else {
+			return e.WithType(tInt64), nil
+		}
 	case ast.Float:
-		return e.WithType(tFloat32), nil
+		if validFloat32(e) {
+			return e.WithType(tFloat32), nil
+		} else {
+			return e.WithType(tFloat64), nil
+		}
 	case ast.Complex:
-		return e.WithType(tComplex64), nil
+		if validComplex64(e) {
+			return e.WithType(tComplex64), nil
+		} else {
+			return e.WithType(tComplex128), nil
+		}
 	case ast.Char:
 		return e.WithType(tRune), nil
 	case ast.String:
@@ -279,6 +292,7 @@ func (i *Inference) infer(env *Env, level ast.Level, expr ast.Expr) (ast.Type, *
 	case ast.Ann:
 		{
 			i.tc.context.types.Push(e.AnnType)
+			defer i.tc.context.types.Pop()
 			typ := e.AnnType
 			exp := e.Exp
 			// this is a little `checking mode` for some base conversions
@@ -305,8 +319,8 @@ func (i *Inference) infer(env *Env, level ast.Level, expr ast.Expr) (ast.Type, *
 				restTy = tUint32
 			} else if isInt && typ.Equals(tUint64) {
 				restTy = tUint64
-			} else if f, isFloat := exp.(ast.Float); isFloat && typ.Equals(tFloat32) && validFloat32(f) {
-				restTy = tFloat32
+			} else if _, isFloat := exp.(ast.Float); isFloat && typ.Equals(tFloat64) {
+				restTy = tFloat64
 			} else {
 				err := i.validateType(typ, env, exp.GetSpan())
 				if err != nil {
@@ -322,7 +336,6 @@ func (i *Inference) infer(env *Env, level ast.Level, expr ast.Expr) (ast.Type, *
 				}
 				restTy = typ
 			}
-			i.tc.context.types.Pop()
 			exp.WithType(restTy)
 			return e.WithType(restTy), nil
 		}
@@ -927,7 +940,13 @@ func validUint32(i ast.Int) bool {
 	return i.V >= 0 && i.V <= math.MaxUint32
 }
 func validFloat32(f ast.Float) bool {
-	return f.V >= math.SmallestNonzeroFloat32 && f.V <= math.MaxFloat32
+	v := float64(float32(f.V))
+	return v == f.V
+}
+func validComplex64(f ast.Complex) bool {
+	r := real(f.V)
+	i := imag(f.V)
+	return validFloat32(ast.Float{V: r}) && validFloat32(ast.Float{V: i})
 }
 
 // Checks if a public function doesn't have a private type.

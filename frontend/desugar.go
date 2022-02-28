@@ -33,8 +33,8 @@ type Desugar struct {
 func NewDesugar(smod ast.SModule, tc *tc.Typechecker) *Desugar {
 	aliases := data.NewSet[string]()
 	for _, imp := range smod.Imports {
-		if imp.Alias != nil {
-			aliases.Add(*imp.Alias)
+		if imp.Alias != "" {
+			aliases.Add(imp.Alias)
 		}
 	}
 	return &Desugar{
@@ -724,13 +724,16 @@ func (d *Desugar) goDesugarType(ty ast.SType, isCtor bool, vars map[string]ast.T
 				}
 			} else {
 				modName, has := d.imports[t.Fullname()]
+				var varName string
 				if has {
 					d.usedImports.Add(modName)
+					varName = fmt.Sprintf("%s.%s", modName, t.Name)
+				} else if _, isPrim := tc.PrimitiveTypes[t.Name]; isPrim {
+					varName = t.Name
 				} else {
-					modName = d.modName
+					varName = fmt.Sprintf("%s.%s", d.modName, t.Name)
 				}
 				// TODO: check foreigns here
-				varName := fmt.Sprintf("%s.%s", modName, t.Name)
 				return ast.TConst{Name: varName, Kind: kind, Span: t.Span}
 			}
 		}

@@ -39,6 +39,8 @@ func (p *parser) ParseFullModule() (res ast.SModule, errs []data.CompilerProblem
 					msg = e.msg
 					span = e.span
 				}
+			case error:
+				panic("Got unexpected error in parseFullModule: " + e.Error())
 			default:
 				panic("Got unexpected error in parseFullModule")
 			}
@@ -147,7 +149,7 @@ func (p *parser) parseImport() ast.Import {
 			if p.iter.peek().Type == lexer.AS {
 				p.iter.next()
 				alias := p.expect(lexer.UPPERIDENT, withError(data.IMPORT_ALIAS))
-				impor = ast.Import{Module: mod, Defs: imp, Alias: alias.Text, Span: span(impTk.Span, p.iter.current.Span)}
+				impor = ast.Import{Module: mod, Defs: imp, Alias: *alias.Text, Span: span(impTk.Span, p.iter.current.Span)}
 			} else {
 				impor = ast.Import{Module: mod, Defs: imp, Span: span(impTk.Span, p.iter.current.Span)}
 			}
@@ -156,7 +158,7 @@ func (p *parser) parseImport() ast.Import {
 		{
 			p.iter.next()
 			alias := p.expect(lexer.UPPERIDENT, withError(data.IMPORT_ALIAS))
-			impor = ast.Import{Module: mod, Alias: alias.Text, Span: span(impTk.Span, p.iter.current.Span)}
+			impor = ast.Import{Module: mod, Alias: *alias.Text, Span: span(impTk.Span, p.iter.current.Span)}
 		}
 	}
 	impor.Comment = impTk.Comment
@@ -733,7 +735,7 @@ func (p *parser) parseIf() ast.SExpr {
 	offside := p.iter.offside + 1
 
 	hasElse := false
-	var els *lexer.Token = nil
+	var els lexer.Token
 	condThens := withIgnoreOffside(p, true, func() data.Tuple[ast.SExpr, ast.SExpr] {
 		cond := p.parseExpression(false)
 
@@ -750,7 +752,7 @@ func (p *parser) parseIf() ast.SExpr {
 		})
 
 		if p.iter.peek().Type == lexer.ELSE {
-			*els = p.expect(lexer.ELSE, withError(data.ELSE))
+			els = p.expect(lexer.ELSE, withError(data.ELSE))
 			hasElse = true
 		}
 		return data.Tuple[ast.SExpr, ast.SExpr]{V1: cond, V2: thens}

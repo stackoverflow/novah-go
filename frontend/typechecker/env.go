@@ -50,6 +50,12 @@ func (e *Env) ForEachInstance(action func(string, InstanceEnv)) {
 	}
 }
 
+func (e *Env) AddPrimitiveTypes() {
+	for name, ty := range PrimitiveTypes {
+		e.ExtendType(name, ty)
+	}
+}
+
 // Returns a copy of the original env.
 // This will reallocate all the maps.
 func (e *Env) Fork() *Env {
@@ -118,32 +124,26 @@ var tRune = ast.TConst{Name: PrimRune}
 
 var tUnit = ast.TConst{Name: PrimUnit}
 
-var primModuleEnv = ModuleEnv{
-	Decls: make(map[string]DeclRef),
-	Types: map[string]TypeDeclRef{
-		"Byte":       tdecl(tByte),
-		"Int":        tdecl(tInt),
-		"Int8":       tdecl(tInt8),
-		"Int16":      tdecl(tInt16),
-		"Int32":      tdecl(tInt32),
-		"Int64":      tdecl(tInt64),
-		"Uint":       tdecl(tUint),
-		"Uint8":      tdecl(tUint8),
-		"Uint16":     tdecl(tUint16),
-		"Uint32":     tdecl(tUint32),
-		"Uint64":     tdecl(tUint64),
-		"Uintptr":    tdecl(tUintptr),
-		"Float32":    tdecl(tFloat32),
-		"Float64":    tdecl(tFloat64),
-		"Complex64":  tdecl(tComplex64),
-		"Complex128": tdecl(tComplex128),
-		"Bool":       tdecl(tBool),
-		"Rune":       tdecl(tRune),
-		"String":     tdecl(tString),
-		"Unit":       tdecl(tUnit),
-	},
-}
-
-func tdecl(ty ast.Type) TypeDeclRef {
-	return TypeDeclRef{Type: ty, Visibility: ast.PUBLIC}
+// All primitive types that should be added to the environment
+var PrimitiveTypes = map[string]ast.Type{
+	"Byte":       tByte,
+	"Int":        tInt,
+	"Int8":       tInt8,
+	"Int16":      tInt16,
+	"Int32":      tInt32,
+	"Int64":      tInt64,
+	"Uint":       tUint,
+	"Uint8":      tUint8,
+	"Uint16":     tUint16,
+	"Uint32":     tUint32,
+	"Uint64":     tUint64,
+	"Uintptr":    tUintptr,
+	"Float32":    tFloat32,
+	"Float64":    tFloat64,
+	"Complex64":  tComplex64,
+	"Complex128": tComplex128,
+	"Bool":       tBool,
+	"Rune":       tRune,
+	"String":     tString,
+	"Unit":       tUnit,
 }

@@ -59,7 +59,7 @@ type DeclarationRef struct {
 type Import struct {
 	Module  Spanned[string]
 	Span    data.Span
-	Alias   *string
+	Alias   string
 	Auto    bool
 	Comment *lexer.Comment
 	Defs    []DeclarationRef

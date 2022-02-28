@@ -103,6 +103,7 @@ func (u *Unification) unify(t1, t2 ast.Type, span data.Span) error {
 		}
 		tv1.Tvar.Tag = ast.LINK
 		tv1.Tvar.Type = t2
+		return nil
 	}
 	if isTvar2 && tv2.Tvar.Tag == ast.UNBOUND {
 		err = u.occursCheckAndAdjustLevels(tv2.Tvar.Id, tv2.Tvar.Level, t1)
@@ -111,6 +112,7 @@ func (u *Unification) unify(t1, t2 ast.Type, span data.Span) error {
 		}
 		tv2.Tvar.Tag = ast.LINK
 		tv2.Tvar.Type = t1
+		return nil
 	}
 
 	_, isTRempty1 := t1.(ast.TRowEmpty)

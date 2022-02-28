@@ -247,7 +247,7 @@ func (t TImplicit) GetKind() Kind {
 func (t TConst) Equals(other Type) bool {
 	tc, isTc := other.(TConst)
 	if isTc {
-		return t == tc
+		return t.Name == tc.Name
 	}
 	return false
 }
@@ -360,7 +360,7 @@ func ShowTypeInner(typ Type, qualified bool, tvarsMap map[int]string) string {
 
 	var run func(Type, bool, bool) string
 	run = func(ty Type, nested bool, topLevel bool) string {
-		switch t := typ.(type) {
+		switch t := ty.(type) {
 		case TConst:
 			if qualified {
 				return t.Name

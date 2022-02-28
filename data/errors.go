@@ -165,6 +165,14 @@ func UndefinedVarInCtor(name string, typeVars []string) string {
 	return fmt.Sprintf("The variables %s are undefined in constructor %s.", vars, name)
 }
 
+func CannotFindInModule(name string, module string) string {
+	return fmt.Sprintf("Cannot find %s in module %s.", name, module)
+}
+
+func CannotImportInModule(name string, module string) string {
+	return fmt.Sprintf("Cannot import private %s in module %s.", name, module)
+}
+
 func UndefinedVar(name string) string {
 	return fmt.Sprintf("Undefined variable %s.", name)
 }

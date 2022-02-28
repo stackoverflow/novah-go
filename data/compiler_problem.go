@@ -34,7 +34,7 @@ func (cp CompilerProblem) Error() string {
 func (err CompilerProblem) FormatToConsole() string {
 	var mod string
 	if err.Module != "" {
-		mod = fmt.Sprintf("module %s%s%s", yellow, err.Module, reset)
+		mod = fmt.Sprintf("module %s%s%s ", yellow, err.Module, reset)
 	}
 	at := fmt.Sprintf("at %s:%s\n\n", err.Filename, err.Span.String())
 

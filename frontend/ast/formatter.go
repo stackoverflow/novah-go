@@ -64,8 +64,8 @@ func (f *Formatter) ShowImport(imp Import) string {
 		exposes = fmt.Sprintf("(%s)", data.JoinToStringFunc(imp.Defs, ", ", f.ShowDeclarationRef))
 	}
 	alias := ""
-	if imp.Alias != nil {
-		alias = " as " + *imp.Alias
+	if imp.Alias != "" {
+		alias = " as " + imp.Alias
 	}
 	return fmt.Sprintf("%simport %s%s%s", cmt, imp.Module.Val, exposes, alias)
 }

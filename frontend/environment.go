@@ -93,7 +93,11 @@ func (env *Environment) parseSources(srcs []Source, isStdlib bool) (map[string]t
 	for _, modNode := range omods.ToSlice() {
 		mod := modNode.Data
 		checker := tc.NewTypechecker()
-		// TODO: imports
+		importErrs := resolveImports(&mod, env.modules, checker.Env())
+		env.errors = append(env.errors, importErrs...)
+		if shouldStop(env.errors) {
+			return nil, env.errors
+		}
 
 		if env.opts.Verbose {
 			log.Default().Printf("typechecking %s\n", mod.Name.Val)
