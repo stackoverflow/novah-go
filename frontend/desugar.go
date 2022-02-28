@@ -216,7 +216,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 				if has {
 					d.usedImports.Add(importedModule)
 				}
-				return ast.Var{Name: e.Name, Span: e.Span, ModuleName: &importedModule, Type: &ast.Typed{}}, nil
+				return ast.Var{Name: e.Name, Span: e.Span, ModuleName: importedModule, Type: &ast.Typed{}}, nil
 			}
 		}
 	case ast.SImplicitVar:
@@ -232,9 +232,9 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if has {
 				d.usedImports.Add(importedModule)
 			}
-			mname := &importedModule
+			mname := importedModule
 			if locals.Contains(e.Name) {
-				mname = nil
+				mname = ""
 			}
 			return ast.ImplicitVar{Name: e.Name, Span: e.Span, ModuleName: mname, Type: &ast.Typed{}}, nil
 		}
@@ -260,9 +260,9 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 				d.usedImports.Add(importedModule)
 			}
 			if lexer.IsUpper(exp.Name) {
-				return ast.Ctor{Name: exp.Name, Span: exp.Span, ModuleName: &importedModule, Type: &ast.Typed{}}, nil
+				return ast.Ctor{Name: exp.Name, Span: exp.Span, ModuleName: importedModule, Type: &ast.Typed{}}, nil
 			} else {
-				return ast.Var{Name: exp.Name, Span: exp.Span, ModuleName: &importedModule, IsOp: true, Type: &ast.Typed{}}, nil
+				return ast.Var{Name: exp.Name, Span: exp.Span, ModuleName: importedModule, IsOp: true, Type: &ast.Typed{}}, nil
 			}
 		}
 	case ast.SConstructor:
@@ -277,7 +277,7 @@ func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[
 			if has {
 				d.usedImports.Add(importedModule)
 			}
-			return ast.Ctor{Name: e.Name, Span: e.Span, ModuleName: &importedModule, Type: &ast.Typed{}}, nil
+			return ast.Ctor{Name: e.Name, Span: e.Span, ModuleName: importedModule, Type: &ast.Typed{}}, nil
 		}
 	case ast.SLambda:
 		{
@@ -677,7 +677,7 @@ func (d *Desugar) desugarPattern(sp ast.SPattern, locals data.Set[string], tvars
 				return nil, err2
 			}
 			mname := "novah.core"
-			ctor := ast.Ctor{Name: "Tuple", Span: pat.Span, ModuleName: &mname, Type: &ast.Typed{}}
+			ctor := ast.Ctor{Name: "Tuple", Span: pat.Span, ModuleName: mname, Type: &ast.Typed{}}
 			return ast.CtorP{Ctor: ctor, Fields: []ast.Pattern{p1, p2}, Span: pat.Span, Type: &ast.Typed{}}, nil
 		}
 	case ast.SRegexP:

@@ -142,7 +142,7 @@ type Bool struct {
 
 type Var struct {
 	Name       string
-	ModuleName *string
+	ModuleName string
 	Span       data.Span
 	IsOp       bool
 	Type       *Typed
@@ -150,14 +150,14 @@ type Var struct {
 
 type Ctor struct {
 	Name       string
-	ModuleName *string
+	ModuleName string
 	Span       data.Span
 	Type       *Typed
 }
 
 type ImplicitVar struct {
 	Name       string
-	ModuleName *string
+	ModuleName string
 	Span       data.Span
 	Type       *Typed
 }
@@ -352,8 +352,8 @@ func (e Var) GetType() Type {
 	return e.Type.Type
 }
 func (e Var) Fullname() string {
-	if e.ModuleName != nil {
-		return fmt.Sprintf("%s.%s", *e.ModuleName, e.Name)
+	if e.ModuleName != "" {
+		return fmt.Sprintf("%s.%s", e.ModuleName, e.Name)
 	}
 	return e.Name
 }
@@ -366,8 +366,8 @@ func (e Ctor) GetType() Type {
 	return e.Type.Type
 }
 func (e Ctor) Fullname() string {
-	if e.ModuleName != nil {
-		return fmt.Sprintf("%s.%s", *e.ModuleName, e.Name)
+	if e.ModuleName != "" {
+		return fmt.Sprintf("%s.%s", e.ModuleName, e.Name)
 	}
 	return e.Name
 }
@@ -380,8 +380,8 @@ func (e ImplicitVar) GetType() Type {
 	return e.Type.Type
 }
 func (e ImplicitVar) Fullname() string {
-	if e.ModuleName != nil {
-		return fmt.Sprintf("%s.%s", *e.ModuleName, e.Name)
+	if e.ModuleName != "" {
+		return fmt.Sprintf("%s.%s", e.ModuleName, e.Name)
 	}
 	return e.Name
 }

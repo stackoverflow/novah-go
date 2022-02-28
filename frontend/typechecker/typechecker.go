@@ -66,10 +66,10 @@ func (tc *Typechecker) Env() *Env {
 func (tc *Typechecker) instantiate(level ast.Level, typ ast.Type) ast.Type {
 	idVarMap := make(map[ast.Id]ast.Type)
 	var f func(ast.Type) ast.Type
-	f = func(typp ast.Type) ast.Type {
-		switch t := typp.(type) {
+	f = func(ty ast.Type) ast.Type {
+		switch t := ty.(type) {
 		case ast.TConst:
-			return t
+			return ty
 		case ast.TVar:
 			{
 				tv := t.Tvar
@@ -85,44 +85,26 @@ func (tc *Typechecker) instantiate(level ast.Level, typ ast.Type) ast.Type {
 						return va
 					}
 				} else { // unbound
-					return t
+					return ty
 				}
 			}
 		case ast.TApp:
-			{
-				t.Type = f(t.Type)
-				t.Types = data.MapSlice(t.Types, f)
-				return t
-			}
+			return ast.TApp{Type: f(t.Type), Types: data.MapSlice(t.Types, f), Span: t.Span}
 		case ast.TArrow:
-			{
-				t.Args = data.MapSlice(t.Args, f)
-				t.Ret = f(t.Ret)
-				return t
-			}
+			return ast.TArrow{Args: data.MapSlice(t.Args, f), Ret: f(t.Ret), Span: t.Span}
 		case ast.TImplicit:
-			{
-				t.Type = f(t.Type)
-				return t
-			}
+			return ast.TImplicit{Type: f(t.Type), Span: t.Span}
 		case ast.TRecord:
-			{
-				t.Row = f(t.Row)
-				return t
-			}
+			return ast.TRecord{Row: f(t.Row), Span: t.Span}
 		case ast.TRowEmpty:
-			return t
+			return ty
 		case ast.TRowExtend:
-			{
-				t.Row = f(t.Row)
-				t.Labels = data.LabelMapValues(t.Labels, f)
-				return t
-			}
+			return ast.TRowExtend{Labels: data.LabelMapValues(t.Labels, f), Row: f(t.Row), Span: t.Span}
 		default:
 			panic("got unknow type in instantiate")
 		}
 	}
-	return f(typ.Clone())
+	return f(typ)
 }
 
 func (tc *Typechecker) checkWellFormed(typ ast.Type, span data.Span) error {
