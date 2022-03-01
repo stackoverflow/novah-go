@@ -685,7 +685,11 @@ func (lex *Lexer) advancePos(r rune) rune {
 		lex.line++
 		lex.col = 1
 	} else {
-		lex.col++
+		if r == '\t' {
+			lex.col = lex.col + 2
+		} else {
+			lex.col++
+		}
 	}
 	return r
 }

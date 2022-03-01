@@ -11,17 +11,14 @@ import (
 type Inference struct {
 	tc       *Typechecker
 	errors   []data.CompilerProblem
-	env      *Env
 	uni      *Unification
 	pvtTypes data.Set[string]
-	mod      ast.Module
 }
 
 func NewInference(tc *Typechecker, uni *Unification) *Inference {
 	return &Inference{
 		tc:       tc,
 		errors:   make([]data.CompilerProblem, 0),
-		env:      NewEnv(),
 		uni:      uni,
 		pvtTypes: data.NewSet[string](),
 	}
@@ -31,23 +28,23 @@ func NewInference(tc *Typechecker, uni *Unification) *Inference {
 // If error != nil a fatal error ocurred.
 // call Errors() to get all errors
 func (i *Inference) inferModule(mod ast.Module) (ModuleEnv, error) {
-	i.mod = mod
+	env := i.tc.env
 	i.errors = make([]data.CompilerProblem, 0)
 	decls := make(map[string]DeclRef)
 	types := make(map[string]TypeDeclRef)
 
 	vvar := i.tc.NewGenVar()
-	i.env.Extend("__fix", ast.TArrow{Args: []ast.Type{ast.TArrow{Args: []ast.Type{vvar}, Ret: vvar}}, Ret: vvar})
+	env.Extend("__fix", ast.TArrow{Args: []ast.Type{ast.TArrow{Args: []ast.Type{vvar}, Ret: vvar}}, Ret: vvar})
 
 	datas := data.FilterSliceIsInstance[ast.Decl, ast.TypeDecl](mod.Decls)
 	for _, d := range datas {
 		ty, m := i.getDataType(d, mod.Name.Val)
-		err := i.checkShadowType(i.env, d.Name.Val, d.Span)
+		err := i.checkShadowType(env, d.Name.Val, d.Span)
 		if err != nil {
 			return ModuleEnv{}, err
 		}
 		typeName := fmt.Sprintf("%s.%s", mod.Name.Val, d.Name.Val)
-		i.env.ExtendType(typeName, ty)
+		env.ExtendType(typeName, ty)
 
 		if d.Visibility == ast.PRIVATE {
 			i.pvtTypes.Add(typeName)
@@ -58,11 +55,11 @@ func (i *Inference) inferModule(mod ast.Module) (ModuleEnv, error) {
 			dcname := dc.Name.Val
 			ctorNames = append(ctorNames, dcname)
 			dcty := getCtorType(dc, ty, m)
-			err := i.checkShadow(i.env, dcname, dc.Span)
+			err := i.checkShadow(env, dcname, dc.Span)
 			if err != nil {
 				return ModuleEnv{}, err
 			}
-			i.env.Extend(dcname, dcty)
+			env.Extend(dcname, dcty)
 			// TODO: cache constructor
 			decls[dcname] = DeclRef{Type: dcty, Visibility: dc.Visibility, IsInstance: false, Comment: nil}
 		}
@@ -70,7 +67,7 @@ func (i *Inference) inferModule(mod ast.Module) (ModuleEnv, error) {
 	}
 	for _, d := range datas {
 		for _, dc := range d.DataCtors {
-			name, _ := i.env.Lookup(dc.Name.Val)
+			name, _ := env.Lookup(dc.Name.Val)
 			err := i.tc.checkWellFormed(name, dc.Span)
 			if err != nil {
 				return ModuleEnv{}, err
@@ -83,13 +80,13 @@ func (i *Inference) inferModule(mod ast.Module) (ModuleEnv, error) {
 	vals := data.FilterSliceIsInstance[ast.Decl, ast.ValDecl](mod.Decls)
 	for _, val := range vals {
 		if ann, isAnn := val.Exp.(ast.Ann); isAnn {
-			err := i.checkShadow(i.env, val.Name.Val, val.Span)
+			err := i.checkShadow(env, val.Name.Val, val.Span)
 			if err != nil {
 				return ModuleEnv{}, err
 			}
-			i.env.Extend(val.Name.Val, ann.AnnType)
+			env.Extend(val.Name.Val, ann.AnnType)
 			if val.IsInstance {
-				i.env.ExtendInstance(val.Name.Val, ann.AnnType, false)
+				env.ExtendInstance(val.Name.Val, ann.AnnType, false)
 			}
 		}
 	}
@@ -100,14 +97,14 @@ func (i *Inference) inferModule(mod ast.Module) (ModuleEnv, error) {
 		name := decl.Name.Val
 		_, isAnnotated := decl.Exp.(ast.Ann)
 		if !isAnnotated {
-			err := i.checkShadow(i.env, name, decl.Span)
+			err := i.checkShadow(env, name, decl.Span)
 			if err != nil {
 				i.addError(err)
 				continue
 			}
 		}
 
-		newEnv := i.env.Fork()
+		newEnv := env.Fork()
 		var ty ast.Type
 		var err *data.CompilerProblem
 		if decl.Recursive {
@@ -127,9 +124,9 @@ func (i *Inference) inferModule(mod ast.Module) (ModuleEnv, error) {
 
 		// TODO: check implicits
 		genTy := i.generalize(-1, ty)
-		i.env.Extend(name, genTy)
+		env.Extend(name, genTy)
 		if decl.IsInstance {
-			i.env.ExtendInstance(name, genTy, false)
+			env.ExtendInstance(name, genTy, false)
 		}
 		decls[name] = DeclRef{Type: genTy, Visibility: decl.Visibility, IsInstance: decl.IsInstance, Comment: decl.Comment}
 
@@ -902,7 +899,7 @@ func (i *Inference) validateType(typ ast.Type, env *Env, span data.Span) *data.C
 	var err *data.CompilerProblem
 	ast.EverywhereTypeUnit(typ, func(t ast.Type) {
 		if ty, isConst := t.(ast.TConst); isConst {
-			if _, inEnv := env.LookupType(ty.Name); inEnv {
+			if _, inEnv := env.LookupType(ty.Name); !inEnv {
 				if !ty.Span.IsEmpty() {
 					span = ty.Span
 				}

@@ -65,6 +65,7 @@ func (u *Unification) unify(t1, t2 ast.Type, span data.Span) error {
 				return err
 			}
 		}
+		return nil
 	}
 
 	tf1, isTarr1 := t1.(ast.TArrow)
@@ -83,6 +84,7 @@ func (u *Unification) unify(t1, t2 ast.Type, span data.Span) error {
 		if err != nil {
 			return err
 		}
+		return nil
 	}
 
 	tv1, isTvar1 := t1.(ast.TVar)

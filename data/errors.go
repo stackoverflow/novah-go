@@ -180,8 +180,7 @@ func UndefinedVar(name string) string {
 func UndefinedType(typ string) string {
 	return fmt.Sprintf(`Undefined type %s
         
-	Make sure the type is imported: import some.module (MyType)
-	Or if it's a foreign type: foreign import java.io.File`, typ)
+	Make sure the type is imported: import some.module (MyType)`, typ)
 }
 
 func WrongKind(expected, got string) string {
@@ -230,7 +229,7 @@ A public function cannot have a private type.`, typ)
 }
 
 func IncompatibleTypes(t1, t2 string) string {
-	return fmt.Sprintf("Incompatible types $%s and %s.", t1, t2)
+	return fmt.Sprintf("Incompatible types %s and %s.", t1, t2)
 }
 
 func InfiniteType(name string) string {

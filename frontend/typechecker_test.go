@@ -80,6 +80,104 @@ f2 a = if true then 10 else id a`
 	assert.Equal(t, "Int -> Int", simpleName(ds["f2"].Type))
 }
 
+func TestGenerics(t *testing.T) {
+	code := `
+module test
+
+x = \y -> y
+
+z = (\y -> y) false`
+
+	ds := compileCode(code, t).Env.Decls
+
+	assert.Equal(t, "t1 -> t1", simpleName(ds["x"].Type))
+	assert.Equal(t, "Bool", simpleName(ds["z"].Type))
+}
+
+func TestLet(t *testing.T) {
+	code := `
+module test
+
+f () =
+  let x = 1
+	let y = x
+	y
+
+g () =
+  let a = "bla"
+  in a`
+
+	ds := compileCode(code, t).Env.Decls
+
+	assert.Equal(t, "Unit -> Int", simpleName(ds["f"].Type))
+	assert.Equal(t, "Unit -> String", simpleName(ds["g"].Type))
+}
+
+func TestPolymorphicLet(t *testing.T) {
+	code := `
+module test
+
+f _ =
+  let id x = x
+	id 10
+`
+
+	ds := compileCode(code, t).Env.Decls
+
+	assert.Equal(t, "t1 -> Int", simpleName(ds["f"].Type))
+}
+
+func TestRecursiveFunction(t *testing.T) {
+	code := `
+module test
+
+fact v = case v of
+	0 -> 1
+	1 -> 1
+	x -> fact x
+`
+
+	ds := compileCode(code, t).Env.Decls
+
+	assert.Equal(t, "Int -> Int", simpleName(ds["fact"].Type))
+}
+
+func TestMutuallyRecursiveFunctions(t *testing.T) {
+	code := `
+module test
+
+f1 : Int -> Int
+f1 x =
+	if true
+	then f2 x
+	else x
+
+f2 : Int -> Int
+f2 x =
+	if false
+	then f1 x
+	else x`
+
+	ds := compileCode(code, t).Env.Decls
+
+	assert.Equal(t, "Int -> Int", simpleName(ds["f1"].Type))
+	assert.Equal(t, "Int -> Int", simpleName(ds["f2"].Type))
+}
+
+func TestHighRankedTypes(t *testing.T) {
+	code := `
+module test
+
+type Tuple a b = Tuple a b
+            
+//fun : (forall a. a -> a) -> Tuple Int String
+fun f = Tuple (f 1) (f "a")`
+
+	_, errs := compileCodeWithErrors(code)
+
+	assert.Equal(t, 1, len(errs))
+}
+
 // helpers
 
 func compileCode(code string, t *testing.T) typechecker.FullModuleEnv {
