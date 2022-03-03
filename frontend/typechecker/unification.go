@@ -42,6 +42,9 @@ func (u *Unification) Unify(t1, t2 ast.Type, span data.Span) *data.CompilerProbl
 }
 
 func (u *Unification) unify(t1, t2 ast.Type, span data.Span) error {
+	if t1.Equals(t2) {
+		return nil
+	}
 	var err error
 	tc1, isTconst1 := t1.(ast.TConst)
 	tc2, isTconst2 := t2.(ast.TConst)

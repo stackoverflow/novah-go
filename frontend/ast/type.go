@@ -291,7 +291,7 @@ func (t TVar) Equals(other Type) bool {
 		return tv.Tvar.Tag == LINK && tvar.Type.Equals(tv.Tvar.Type)
 	}
 	if tvar.Tag == UNBOUND {
-		return tv.Tvar.Tag == UNBOUND && tvar.Id == tvar.Id && tvar.Level == tv.Tvar.Level
+		return tv.Tvar.Tag == UNBOUND && tvar.Id == tv.Tvar.Id && tvar.Level == tv.Tvar.Level
 	}
 	return tv.Tvar.Tag == GENERIC && tvar.Id == tv.Tvar.Id
 }

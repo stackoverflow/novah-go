@@ -178,6 +178,21 @@ fun f = Tuple (f 1) (f "a")`
 	assert.Equal(t, 1, len(errs))
 }
 
+func TestRecursiveLets(t *testing.T) {
+	code := `
+module test
+
+(==) : a -> a -> Bool
+(==) _ _ = true
+
+fun n s =
+  let rec x y = if x == 1 then y else rec 1 y
+  rec n s`
+
+	ds := compileCode(code, t).Env.Decls
+	assert.Equal(t, "Int -> t1 -> t1", simpleName(ds["fun"].Type))
+}
+
 // helpers
 
 func compileCode(code string, t *testing.T) typechecker.FullModuleEnv {
