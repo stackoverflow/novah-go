@@ -1,6 +1,6 @@
 package parser
 
-import "github.com/stackoverflow/novah-go/frontend/lexer"
+import "github.com/stackoverflow/novah-go/compiler/lexer"
 
 type PeekableIterator struct {
 	lexer   *lexer.Lexer

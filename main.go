@@ -1,13 +1,12 @@
 package main
 
 import (
-	"fmt"
+	"github.com/spf13/cobra"
+	compile "github.com/stackoverflow/novah-go/cmd/compile_cmd"
 )
 
-//line main.novah:3
-var Holla = "Holla mundo"
-
-//line main.novah:6
 func main() {
-	fmt.Println(string(Holla[len(Holla)-1]))
+	rootCmd := &cobra.Command{Use: "novah", Version: "0.1"}
+	rootCmd.AddCommand(compile.CompileCmd)
+	rootCmd.Execute()
 }

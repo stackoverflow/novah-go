@@ -1,12 +1,12 @@
-package frontend
+package compiler
 
 import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/stackoverflow/novah-go/compiler/ast"
+	"github.com/stackoverflow/novah-go/compiler/typechecker"
 	"github.com/stackoverflow/novah-go/data"
-	"github.com/stackoverflow/novah-go/frontend/ast"
-	"github.com/stackoverflow/novah-go/frontend/typechecker"
 	"github.com/stretchr/testify/assert"
 )
 

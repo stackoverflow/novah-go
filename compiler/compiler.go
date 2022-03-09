@@ -1,4 +1,4 @@
-package frontend
+package compiler
 
 import (
 	"bufio"
@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/stackoverflow/novah-go/compiler/typechecker"
 	"github.com/stackoverflow/novah-go/data"
-	"github.com/stackoverflow/novah-go/frontend/typechecker"
 )
 
 type Options struct {
@@ -35,6 +35,9 @@ func (c *Compiler) Run(output string, dryRun bool) []data.CompilerProblem {
 	_, errs := c.env.ParseSources(c.sources)
 	if errs != nil {
 		return errs
+	}
+	if len(c.env.errors) > 0 {
+		return c.env.errors
 	}
 	c.env.GenerateCode(output, dryRun)
 	return c.env.errors

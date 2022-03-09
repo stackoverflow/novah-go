@@ -3,8 +3,8 @@ package ast
 import (
 	"fmt"
 
+	"github.com/stackoverflow/novah-go/compiler/lexer"
 	"github.com/stackoverflow/novah-go/data"
-	"github.com/stackoverflow/novah-go/frontend/lexer"
 )
 
 type Module struct {
@@ -106,30 +106,35 @@ type Typed struct {
 
 type Int struct {
 	V    int64
+	Raw  string
 	Span data.Span
 	Type *Typed
 }
 
 type Float struct {
 	V    float64
+	Raw  string
 	Span data.Span
 	Type *Typed
 }
 
 type Complex struct {
 	V    complex128
+	Raw  string
 	Span data.Span
 	Type *Typed
 }
 
 type Char struct {
 	V    rune
+	Raw  string
 	Span data.Span
 	Type *Typed
 }
 
 type String struct {
 	V    string
+	Raw  string
 	Span data.Span
 	Type *Typed
 }
@@ -887,6 +892,15 @@ type LetDef struct {
 }
 
 // helpers
+
+func IsConst(exp Expr) bool {
+	switch exp.(type) {
+	case Int, Float, Complex, Bool, Char, String:
+		return true
+	default:
+		return false
+	}
+}
 
 func EverywhereExprAcc[T any](this Expr, f func(Expr) []T) []T {
 	res := make([]T, 0, 5)

@@ -3,9 +3,9 @@ package parser
 import (
 	"math"
 
+	"github.com/stackoverflow/novah-go/compiler/ast"
+	"github.com/stackoverflow/novah-go/compiler/lexer"
 	"github.com/stackoverflow/novah-go/data"
-	"github.com/stackoverflow/novah-go/frontend/ast"
-	"github.com/stackoverflow/novah-go/frontend/lexer"
 )
 
 type parser struct {
@@ -112,18 +112,8 @@ func (p *parser) parseModule() ModuleDef {
 }
 
 func (p *parser) parseModuleName() ast.Spanned[string] {
-	idents := between(p, lexer.DOT, func() lexer.Token {
-		return p.expect(lexer.IDENT, withError(data.MODULE_NAME))
-	})
-	for _, it := range idents {
-		v := *it.Text
-		if v[len(v)-1] == '?' || v[len(v)-1] == '!' {
-			throwError2(data.MODULE_NAME, it.Span)
-		}
-	}
-	span := span(idents[0].Span, idents[len(idents)-1].Span)
-	name := data.JoinToStringFunc(idents, ".", func(t lexer.Token) string { return *t.Text })
-	return ast.Spanned[string]{Val: name, Span: span}
+	ident := p.expect(lexer.IDENT, withError(data.MODULE_NAME))
+	return ast.Spanned[string]{Val: *ident.Text, Span: ident.Span}
 }
 
 func (p *parser) parseImports() []ast.Import {

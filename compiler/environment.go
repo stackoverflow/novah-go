@@ -1,14 +1,17 @@
-package frontend
+package compiler
 
 import (
+	"bufio"
+	"fmt"
 	"io"
-	"log"
+	"os"
+	"path/filepath"
 
+	"github.com/stackoverflow/novah-go/compiler/ast"
+	"github.com/stackoverflow/novah-go/compiler/lexer"
+	"github.com/stackoverflow/novah-go/compiler/parser"
+	tc "github.com/stackoverflow/novah-go/compiler/typechecker"
 	"github.com/stackoverflow/novah-go/data"
-	"github.com/stackoverflow/novah-go/frontend/ast"
-	"github.com/stackoverflow/novah-go/frontend/lexer"
-	"github.com/stackoverflow/novah-go/frontend/parser"
-	tc "github.com/stackoverflow/novah-go/frontend/typechecker"
 )
 
 const ERROR_THRESHOLD = 10
@@ -44,7 +47,7 @@ func (env *Environment) parseSources(srcs []Source, isStdlib bool) (map[string]t
 		alreadySeenPath.Add(path)
 
 		if env.opts.Verbose {
-			log.Default().Printf("parsing %s\n", path)
+			fmt.Printf("parsing %s\n", path)
 		}
 
 		src.WithReader(func(reader io.Reader) {
@@ -68,7 +71,7 @@ func (env *Environment) parseSources(srcs []Source, isStdlib bool) (map[string]t
 
 	if len(modMap) == 0 {
 		if env.opts.Verbose {
-			log.Default().Println("No files to compile")
+			fmt.Println("No files to compile")
 		}
 		return env.modules, nil
 	}
@@ -100,7 +103,7 @@ func (env *Environment) parseSources(srcs []Source, isStdlib bool) (map[string]t
 		}
 
 		if env.opts.Verbose {
-			log.Default().Printf("typechecking %s\n", mod.Name.Val)
+			fmt.Printf("typechecking %s\n", mod.Name.Val)
 		}
 
 		desugar := NewDesugar(mod, checker)
@@ -133,7 +136,37 @@ func (env *Environment) parseSources(srcs []Source, isStdlib bool) (map[string]t
 
 // Optimize the AST and generate go code
 func (env *Environment) GenerateCode(output string, dryRun bool) {
+	goasts := make([]ast.GoPackage, 0, len(env.modules))
+	for _, mod := range env.modules {
+		opt := NewOptimizer(mod.Ast)
+		goasts = append(goasts, opt.Convert())
+	}
 
+	if !dryRun {
+		for _, goast := range goasts {
+			codegen := NewCodegen(goast)
+			gocode := codegen.Run()
+			path := fmt.Sprintf("%s.go", filepath.Join(output, goast.Name))
+			dir := filepath.Dir(path)
+
+			err := os.MkdirAll(dir, os.ModePerm)
+			if err != nil {
+				panic("could not create directory " + dir)
+			}
+			file, err := os.Create(path)
+			if err != nil {
+				panic("could not create file " + path)
+			}
+			defer file.Close()
+
+			writer := bufio.NewWriter(file)
+			_, err = writer.WriteString(gocode)
+			if err != nil {
+				panic("could not write to file " + path)
+			}
+			writer.Flush()
+		}
+	}
 }
 
 func duplicateError(mod ast.SModule, path string) data.CompilerProblem {

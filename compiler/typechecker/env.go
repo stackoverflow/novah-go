@@ -1,6 +1,6 @@
 package typechecker
 
-import "github.com/stackoverflow/novah-go/frontend/ast"
+import "github.com/stackoverflow/novah-go/compiler/ast"
 
 type InstanceEnv struct {
 	Type        ast.Type

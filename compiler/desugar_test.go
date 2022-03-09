@@ -1,13 +1,13 @@
-package frontend
+package compiler
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/stackoverflow/novah-go/frontend/ast"
-	"github.com/stackoverflow/novah-go/frontend/lexer"
-	"github.com/stackoverflow/novah-go/frontend/parser"
-	"github.com/stackoverflow/novah-go/frontend/typechecker"
+	"github.com/stackoverflow/novah-go/compiler/ast"
+	"github.com/stackoverflow/novah-go/compiler/lexer"
+	"github.com/stackoverflow/novah-go/compiler/parser"
+	"github.com/stackoverflow/novah-go/compiler/typechecker"
 )
 
 // Constructors with the same name as the type are not allowed unless there's only one

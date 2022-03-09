@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stackoverflow/novah-go/frontend/ast"
-	"github.com/stackoverflow/novah-go/frontend/lexer"
+	"github.com/stackoverflow/novah-go/compiler/ast"
+	"github.com/stackoverflow/novah-go/compiler/lexer"
 	"github.com/stackoverflow/novah-go/test"
 )
 

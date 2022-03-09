@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/stackoverflow/novah-go/compiler/ast"
 	"github.com/stackoverflow/novah-go/data"
-	"github.com/stackoverflow/novah-go/frontend/ast"
 )
 
 type Inference struct {

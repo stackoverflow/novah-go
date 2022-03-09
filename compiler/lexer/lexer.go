@@ -359,8 +359,8 @@ func (lex *Lexer) ident(init *rune) Token {
 		}
 	}
 
-	if len(str) >= 2 && str[0:2] == "__" {
-		lex.lexError(fmt.Sprintf("Identifiers cannot start with a double underscore (__)."))
+	if len(str) >= 2 && strings.Contains(str, "__") {
+		lex.lexError(fmt.Sprintf("Identifiers cannot have a double underscore (__)."))
 	}
 
 	if IsUpper(str) {

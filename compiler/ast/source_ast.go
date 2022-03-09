@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/stackoverflow/novah-go/compiler/lexer"
 	"github.com/stackoverflow/novah-go/data"
-	"github.com/stackoverflow/novah-go/frontend/lexer"
 )
 
 type Spanned[T any] struct {

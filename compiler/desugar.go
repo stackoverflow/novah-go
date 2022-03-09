@@ -1,14 +1,14 @@
-package frontend
+package compiler
 
 import (
 	"errors"
 	"fmt"
 
 	"github.com/huandu/go-clone"
+	"github.com/stackoverflow/novah-go/compiler/ast"
+	"github.com/stackoverflow/novah-go/compiler/lexer"
+	tc "github.com/stackoverflow/novah-go/compiler/typechecker"
 	"github.com/stackoverflow/novah-go/data"
-	"github.com/stackoverflow/novah-go/frontend/ast"
-	"github.com/stackoverflow/novah-go/frontend/lexer"
-	tc "github.com/stackoverflow/novah-go/frontend/typechecker"
 	"golang.org/x/exp/slices"
 )
 
@@ -186,17 +186,17 @@ func (d *Desugar) desugarDataCtor(ctor ast.SDataCtor) ast.DataCtor {
 func (d *Desugar) desugarExp(sexp ast.SExpr, locals data.Set[string], tvars map[string]ast.Type) (ast.Expr, error) {
 	switch e := sexp.(type) {
 	case ast.SInt:
-		return ast.Int{V: e.V, Span: e.Span, Type: &ast.Typed{}}, nil
+		return ast.Int{V: e.V, Raw: e.Text, Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SFloat:
-		return ast.Float{V: e.V, Span: e.Span, Type: &ast.Typed{}}, nil
+		return ast.Float{V: e.V, Raw: e.Text, Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SComplex:
-		return ast.Complex{V: e.V, Span: e.Span, Type: &ast.Typed{}}, nil
+		return ast.Complex{V: e.V, Raw: e.Text, Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SBool:
 		return ast.Bool{V: e.V, Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SChar:
-		return ast.Char{V: e.V, Span: e.Span, Type: &ast.Typed{}}, nil
+		return ast.Char{V: e.V, Raw: e.Raw, Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SString:
-		return ast.String{V: e.V, Span: e.Span, Type: &ast.Typed{}}, nil
+		return ast.String{V: e.V, Raw: e.Raw, Span: e.Span, Type: &ast.Typed{}}, nil
 	case ast.SPatternLiteral:
 		panic("pattern literals not supported yet")
 	case ast.SVar:

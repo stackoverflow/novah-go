@@ -1,11 +1,11 @@
-package frontend
+package compiler
 
 import (
 	"fmt"
 
+	"github.com/stackoverflow/novah-go/compiler/ast"
+	tc "github.com/stackoverflow/novah-go/compiler/typechecker"
 	"github.com/stackoverflow/novah-go/data"
-	"github.com/stackoverflow/novah-go/frontend/ast"
-	tc "github.com/stackoverflow/novah-go/frontend/typechecker"
 )
 
 func resolveImports(mod *ast.SModule, mods map[string]tc.FullModuleEnv, env *tc.Env) []data.CompilerProblem {
